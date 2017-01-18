@@ -74,6 +74,8 @@ class Solver {
     return test_nets_;
   }
   int iter() { return iter_; }
+  float scale_on_apply() { return scale_on_apply_; }
+  void set_scale_on_apply(float value) { scale_on_apply_ = value; }
 
   // Invoked at specific points during an iteration
   class Callback {
@@ -134,6 +136,9 @@ class Solver {
 
   // True iff a request to stop early was received.
   bool requested_early_exit_;
+
+  // Scale gradients during apply
+  float scale_on_apply_;
 
   // Timing information
   Timer iteration_timer_;

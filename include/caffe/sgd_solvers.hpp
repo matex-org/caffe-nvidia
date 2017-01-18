@@ -25,6 +25,8 @@ class SGDSolver : public Solver<Dtype> {
 
   const vector<shared_ptr<Blob<Dtype> > >& history() { return history_; }
 
+  using Solver<Dtype>::scale_on_apply;
+
  protected:
   void PreSolve();
   Dtype GetLearningRate();

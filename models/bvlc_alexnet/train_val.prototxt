@@ -1,7 +1,7 @@
 name: "AlexNet"
 layer {
   name: "data"
-  type: "Data"
+  type: "PnetCDFAllData"
   top: "data"
   top: "label"
   include {
@@ -10,17 +10,17 @@ layer {
   transform_param {
     mirror: true
     crop_size: 227
-    mean_file: "data/ilsvrc12/imagenet_mean.binaryproto"
+    mean_file: "/raid/data/imagenet_mean.binaryproto"
   }
   data_param {
-    source: "examples/imagenet/ilsvrc12_train_lmdb"
-    batch_size: 256
+    source: "/raid/data/ilsvrc12_train_lmdb_0.nc"
+    batch_size: 32
     backend: LMDB
   }
 }
 layer {
   name: "data"
-  type: "Data"
+  type: "PnetCDFAllData"
   top: "data"
   top: "label"
   include {
@@ -29,10 +29,10 @@ layer {
   transform_param {
     mirror: false
     crop_size: 227
-    mean_file: "data/ilsvrc12/imagenet_mean.binaryproto"
+    mean_file: "/raid/data/imagenet_mean.binaryproto"
   }
   data_param {
-    source: "examples/imagenet/ilsvrc12_val_lmdb"
+    source: "/raid/data/ilsvrc12_val_lmdb.nc"
     batch_size: 50
     backend: LMDB
   }
