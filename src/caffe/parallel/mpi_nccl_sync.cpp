@@ -132,8 +132,8 @@ void MPINCCLSync<Dtype>::on_start() {
 }
 
 template<typename Dtype>
-void MPINCCLSync<Dtype>::on_gradients_ready() {
-  DLOG(INFO) << "on_gradients_ready()";
+void MPINCCLSync<Dtype>::allreduce() {
+  DLOG(INFO) << "allreduce()";
 #ifdef USE_NCCL
 #ifdef USE_MPI
 #ifndef CPU_ONLY

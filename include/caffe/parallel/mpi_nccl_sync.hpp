@@ -30,9 +30,13 @@ class MPINCCLSync : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
   void Run();
   void Step(int iters);
 
+  virtual void allreduce(int param_id) {}
+  virtual void syncCommStream() {}
+
  protected:
-  void on_start();
-  void on_gradients_ready();
+  virtual void on_start();
+  virtual void allreduce();
+  virtual void soft_barrier() {}
 
 #ifdef USE_MPI
   MPI_Comm comm_;

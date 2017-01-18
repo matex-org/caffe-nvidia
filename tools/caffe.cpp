@@ -13,6 +13,8 @@ namespace bp = boost::python;
 
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
+#include "caffe/mpi.hpp"
+#include "caffe/parallel/mpi_nccl_sync.hpp"
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
@@ -49,6 +51,8 @@ DEFINE_string(sigint_effect, "stop",
 DEFINE_string(sighup_effect, "snapshot",
              "Optional; action to take when a SIGHUP signal is received: "
              "snapshot, stop or none.");
+DEFINE_string(par, "",
+        "Optional; parallelization strategy, e.g., MPINCCLSync");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -182,30 +186,49 @@ int train() {
   // Read flags for list of GPUs
   vector<int> gpus;
   get_gpus(&gpus);
+  if (FLAGS_par == "") {
 #ifndef CPU_ONLY
-  caffe::GPUMemory::Scope gpu_memory_scope(gpus);
+    caffe::GPUMemory::Scope gpu_memory_scope(gpus);
 #endif
-  // Set mode and device id[s]
-  if (gpus.size() == 0) {
-    LOG(INFO) << "Use CPU.";
-    Caffe::set_mode(Caffe::CPU);
-  } else {
-    ostringstream s;
-    for (int i = 0; i < gpus.size(); ++i) {
-      s << (i ? ", " : "") << gpus[i];
-    }
-    LOG(INFO) << "Using GPUs " << s.str();
+    // Set mode and device id[s]
+    if (gpus.size() == 0) {
+      LOG(INFO) << "Use CPU.";
+      Caffe::set_mode(Caffe::CPU);
+    } else {
+      ostringstream s;
+      for (int i = 0; i < gpus.size(); ++i) {
+        s << (i ? ", " : "") << gpus[i];
+      }
+      LOG(INFO) << "Using GPUs " << s.str();
 #ifndef CPU_ONLY
-    cudaDeviceProp device_prop;
-    for (int i = 0; i < gpus.size(); ++i) {
-      cudaGetDeviceProperties(&device_prop, gpus[i]);
-      LOG(INFO) << "GPU " << gpus[i] << ": " << device_prop.name;
-    }
+      cudaDeviceProp device_prop;
+      for (int i = 0; i < gpus.size(); ++i) {
+        cudaGetDeviceProperties(&device_prop, gpus[i]);
+        LOG(INFO) << "GPU " << gpus[i] << ": " << device_prop.name;
+      }
 #endif
-    solver_param.set_device_id(gpus[0]);
-    Caffe::SetDevice(gpus[0]);
+      solver_param.set_device_id(gpus[0]);
+      Caffe::SetDevice(gpus[0]);
+      Caffe::set_mode(Caffe::GPU);
+      Caffe::set_solver_count(gpus.size());
+    }
+  }
+  else {
+    int count = 0;
+    int node_rank = caffe::mpi::node_rank();
+    int node_size = caffe::mpi::node_size();
+    CUDA_CHECK(cudaGetDeviceCount(&count));
+    if (node_size <= count) {
+      if (count != node_size) {
+        LOG(INFO) << "MPI node size < cudaGetDeviceCount";
+      }
+    }
+    else {
+      throw std::runtime_error("too many MPI ranks per node");
+    }
+    solver_param.set_device_id(node_rank);
+    Caffe::SetDevice(node_rank);
     Caffe::set_mode(Caffe::GPU);
-    Caffe::set_solver_count(gpus.size());
   }
 
   caffe::SignalHandler signal_handler(
@@ -224,12 +247,20 @@ int train() {
     CopyLayers(solver.get(), FLAGS_weights);
   }
 
-  if (gpus.size() > 1) {
-    caffe::P2PSync<float> sync(solver, 0, gpus.size(), solver->param());
-    sync.Run(gpus);
-  } else {
-    LOG(INFO) << "Starting Optimization";
-    solver->Solve();
+  if (FLAGS_par == "") {
+    if (gpus.size() > 1) {
+      caffe::P2PSync<float> sync(solver, 0, gpus.size(), solver->param());
+      sync.Run(gpus);
+    } else {
+      LOG(INFO) << "Starting Optimization";
+      solver->Solve();
+    }
+  }
+  else {
+    if (FLAGS_par == "MPINCCLSync") {
+      caffe::MPINCCLSync<float> sync(solver, solver->param());
+      sync.Run();
+    }
   }
   LOG(INFO) << "Optimization Done.";
 
@@ -458,6 +489,15 @@ int main(int argc, char** argv) {
   caffe::GlobalInit(&argc, &argv);
 
   if (argc == 2) {
+    if (FLAGS_par != "") {
+      caffe::mpi::init(&argc, &argv);
+      LOG(INFO) << "MPI rank " << caffe::mpi::comm_rank();
+      // only log info from master
+      if (caffe::mpi::comm_rank() > 0) {
+        FLAGS_minloglevel = 2;
+      }
+      LOG(INFO) << "MPI is initialized, disabling logging from other ranks";
+    }
 #ifdef WITH_PYTHON_LAYER
     try {
 #endif
