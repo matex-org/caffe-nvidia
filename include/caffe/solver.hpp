@@ -76,17 +76,19 @@ class Solver {
   int iter() { return iter_; }
   float scale_on_apply() { return scale_on_apply_; }
   void set_scale_on_apply(float value) { scale_on_apply_ = value; }
+  bool use_mpi() { return use_mpi_; }
+  void set_use_mpi(bool value) { use_mpi_ = value; }
 
   // Invoked at specific points during an iteration
   class Callback {
    public:
-    virtual void allreduce(int param_id) = 0;
-    virtual void syncCommStream() = 0;
+    virtual void allreduce(int param_id) {}
+    virtual void syncCommStream() {}
 
    protected:
-    virtual void on_start() = 0;
-    virtual void allreduce() = 0;
-    virtual void soft_barrier() = 0;
+    virtual void on_start() {}
+    virtual void allreduce() {}
+    virtual void soft_barrier() {}
 
     template <typename T>
     friend class Solver;
@@ -102,9 +104,14 @@ class Solver {
    */
   virtual inline const char* type() const { return ""; }
 
- protected:
+ public:
   // Make and apply the update value for the current iteration.
+  virtual Dtype GetLearningRate() = 0;
   virtual void ApplyUpdate() = 0;
+  virtual void Normalize(int param_id) = 0;
+  virtual void Regularize(int param_id) = 0;
+  virtual void ComputeUpdateValue(int param_id, Dtype rate) = 0;
+  virtual void ClipGradients() = 0;
   string SnapshotFilename(const string extension);
   string SnapshotToBinaryProto();
   string SnapshotToHDF5();
@@ -139,6 +146,9 @@ class Solver {
 
   // Scale gradients during apply
   float scale_on_apply_;
+
+  // Whether MPI is in use
+  bool use_mpi_;
 
   // Timing information
   Timer iteration_timer_;

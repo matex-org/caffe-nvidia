@@ -12,6 +12,7 @@
 #include "caffe/caffe.hpp"
 #include "caffe/parallel.hpp"
 #include "caffe/mpi.hpp"
+#include "caffe/parallel.hpp"
 #include "caffe/parallel/mpi_nccl_sync.hpp"
 #include "caffe/util/blocking_queue.hpp"
 
@@ -26,10 +27,6 @@
     exit(EXIT_FAILURE);                             \
   }                                                 \
 } while(0)
-
-template<typename Dtype> ncclDataType_t dtype_to_nccl() { return ncclFloat; }
-template<> ncclDataType_t dtype_to_nccl<float>() { return ncclFloat; }
-template<> ncclDataType_t dtype_to_nccl<double>() { return ncclDouble; }
 
 #endif
 
@@ -86,6 +83,7 @@ MPINCCLSync<Dtype>::MPINCCLSync(shared_ptr<Solver<Dtype> > root_solver,
   solver_ = root_solver;
   this->configure(solver_.get());
   solver_->add_callback(this);
+  solver_->set_use_mpi(true);
 
   NCCLCHECK(ncclGetUniqueId(&commId));
   MPI_Bcast(&commId, NCCL_UNIQUE_ID_BYTES, MPI_CHAR, 0, comm_);
@@ -96,7 +94,7 @@ MPINCCLSync<Dtype>::MPINCCLSync(shared_ptr<Solver<Dtype> > root_solver,
   }
   CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
 
-  NCCLCHECK(ncclBcast((void*)data_, size_, dtype_to_nccl<Dtype>(),
+  NCCLCHECK(ncclBcast((void*)data_, size_, nccl::dataType<Dtype>::type,
         0, ncclComm_, stream_));
   CUDA_CHECK(cudaStreamSynchronize(stream_));
 
@@ -129,6 +127,7 @@ MPINCCLSync<Dtype>::~MPINCCLSync() {
 
 template<typename Dtype>
 void MPINCCLSync<Dtype>::on_start() {
+  DLOG(INFO) << "on_start()";
 }
 
 template<typename Dtype>
@@ -142,9 +141,12 @@ void MPINCCLSync<Dtype>::allreduce() {
   CUDA_CHECK(cudaGetDevice(&device));
   CHECK(device == solver_->param().device_id());
 #endif
+  Timer timer;
+  timer.Start();
   NCCLCHECK(ncclAllReduce((const void *)diff_, (void*)diff_, size_,
-        dtype_to_nccl<Dtype>(), ncclSum, ncclComm_, stream_));
+        nccl::dataType<Dtype>::type, ncclSum, ncclComm_, stream_));
   CUDA_CHECK(cudaStreamSynchronize(stream_));
+  LOG(INFO) << "time in allreduce " << timer.MilliSeconds();
 #else
   NO_GPU;
 #endif

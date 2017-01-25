@@ -1,7 +1,7 @@
 name: "GoogleNet"
 layer {
   name: "data"
-  type: "Data"
+  type: "PnetCDFAllData"
   top: "data"
   top: "label"
   include {
@@ -15,14 +15,14 @@ layer {
     mean_value: 123
   }
   data_param {
-    source: "examples/imagenet/ilsvrc12_train_lmdb"
+    source: "/raid/data/ilsvrc12_train_lmdb_0.nc"
     batch_size: 32
     backend: LMDB
   }
 }
 layer {
   name: "data"
-  type: "Data"
+  type: "PnetCDFAllData"
   top: "data"
   top: "label"
   include {
@@ -36,7 +36,7 @@ layer {
     mean_value: 123
   }
   data_param {
-    source: "examples/imagenet/ilsvrc12_val_lmdb"
+    source: "/raid/data/ilsvrc12_val_lmdb.nc"
     batch_size: 50
     backend: LMDB
   }

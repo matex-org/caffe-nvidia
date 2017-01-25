@@ -625,6 +625,14 @@ void Net<Dtype>::BackwardFromTo(int start, int end) {
           }
         }
       }
+      else if (solver_ && solver_->use_mpi()) {
+        for (int j = 0; j < layers_[i]->blobs().size(); ++j) {
+          int param_id = layer_index_params_[make_pair(i, j)];
+          for (int k = 0; k < solver_->callbacks().size(); ++k) {
+            solver_->callbacks()[k]->allreduce(param_id);
+          }
+        }
+      }
     }
   }
 }

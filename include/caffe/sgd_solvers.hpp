@@ -27,9 +27,9 @@ class SGDSolver : public Solver<Dtype> {
 
   using Solver<Dtype>::scale_on_apply;
 
- protected:
+ public:
   void PreSolve();
-  Dtype GetLearningRate();
+  virtual Dtype GetLearningRate();
   virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);

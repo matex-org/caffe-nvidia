@@ -259,6 +259,7 @@ void P2PSync<Dtype>::on_start() {
 
 template<typename Dtype>
 void P2PSync<Dtype>::allreduce() {
+  DLOG(INFO) << "allreduce()";
 #ifndef CPU_ONLY
 #ifdef USE_NCCL
   // only reduce if we haven't in the bwd pass
@@ -276,6 +277,7 @@ void P2PSync<Dtype>::allreduce() {
 
 template<typename Dtype>
 void P2PSync<Dtype>::allreduce(int param_id) {
+  DLOG(INFO) << "allreduce(param_id)";
 #ifndef CPU_ONLY
 #ifdef USE_NCCL
   // reduce aynchronously in the bwd path
