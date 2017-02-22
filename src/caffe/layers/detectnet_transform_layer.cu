@@ -1,5 +1,8 @@
 #ifdef USE_OPENCV
 
+#define __STDC_LIMIT_MACROS
+#include <stdint.h>
+
 #include <math.h>
 #include <math_constants.h>
 #include <opencv2/core/core.hpp>

@@ -1,6 +1,9 @@
 #ifndef DETECTNET_TRANSFORMATION_HPP
 #define DETECTNET_TRANSFORMATION_HPP
 
+#define __STDC_LIMIT_MACROS
+#include <stdint.h>
+
 #include <boost/array.hpp>
 
 #include <opencv2/core/core.hpp>
