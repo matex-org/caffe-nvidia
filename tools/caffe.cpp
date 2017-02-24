@@ -13,6 +13,8 @@ namespace bp = boost::python;
 
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
+#include "caffe/mpi.hpp"
+#include "caffe/parallel/mpi_sync_gpu.hpp"
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
@@ -49,6 +51,8 @@ DEFINE_string(sigint_effect, "stop",
 DEFINE_string(sighup_effect, "snapshot",
              "Optional; action to take when a SIGHUP signal is received: "
              "snapshot, stop or none.");
+DEFINE_string(par, "",
+    "Optional; parallelization strategy, e.g., MPISyncGPU");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -182,30 +186,61 @@ int train() {
   // Read flags for list of GPUs
   vector<int> gpus;
   get_gpus(&gpus);
+  if (!FLAGS_par.empty()) {
+    // Set mode and device id[s]
+    if (gpus.size() == 0) {
+      LOG(INFO) << "Use CPU.";
+      Caffe::set_mode(Caffe::CPU);
+    } else {
+      int count = 0;
+      int node_rank = caffe::mpi::node_rank();
+      int node_size = caffe::mpi::node_size();
 #ifndef CPU_ONLY
-  caffe::GPUMemory::Scope gpu_memory_scope(gpus);
+      CUDA_CHECK(cudaGetDeviceCount(&count));
 #endif
-  // Set mode and device id[s]
-  if (gpus.size() == 0) {
-    LOG(INFO) << "Use CPU.";
-    Caffe::set_mode(Caffe::CPU);
-  } else {
-    ostringstream s;
-    for (int i = 0; i < gpus.size(); ++i) {
-      s << (i ? ", " : "") << gpus[i];
-    }
-    LOG(INFO) << "Using GPUs " << s.str();
+      if (node_size <= count) {
+        if (count != node_size) {
+          LOG(INFO) << "MPI node size < cudaGetDeviceCount";
+        }
+      }
+      else {
+        throw std::runtime_error("too many MPI ranks per node");
+      }
+      gpus.assign(1, node_rank);
 #ifndef CPU_ONLY
-    cudaDeviceProp device_prop;
-    for (int i = 0; i < gpus.size(); ++i) {
-      cudaGetDeviceProperties(&device_prop, gpus[i]);
-      LOG(INFO) << "GPU " << gpus[i] << ": " << device_prop.name;
-    }
+    caffe::GPUMemory::Scope gpu_memory_scope(gpus);
 #endif
-    solver_param.set_device_id(gpus[0]);
-    Caffe::SetDevice(gpus[0]);
-    Caffe::set_mode(Caffe::GPU);
-    Caffe::set_solver_count(gpus.size());
+      solver_param.set_device_id(node_rank);
+      Caffe::SetDevice(node_rank);
+      Caffe::set_mode(Caffe::GPU);
+    }
+  }
+  else {
+#ifndef CPU_ONLY
+    caffe::GPUMemory::Scope gpu_memory_scope(gpus);
+#endif
+    // Set mode and device id[s]
+    if (gpus.size() == 0) {
+      LOG(INFO) << "Use CPU.";
+      Caffe::set_mode(Caffe::CPU);
+    } else {
+      ostringstream s;
+      for (int i = 0; i < gpus.size(); ++i) {
+        s << (i ? ", " : "") << gpus[i];
+      }
+      LOG(INFO) << "Using GPUs " << s.str();
+#ifndef CPU_ONLY
+      cudaDeviceProp device_prop;
+      for (int i = 0; i < gpus.size(); ++i) {
+        cudaGetDeviceProperties(&device_prop, gpus[i]);
+        LOG(INFO) << "GPU " << gpus[i] << ": " << device_prop.name;
+      }
+#endif
+      solver_param.set_device_id(gpus[0]);
+      Caffe::SetDevice(gpus[0]);
+      Caffe::set_mode(Caffe::GPU);
+      Caffe::set_solver_count(gpus.size());
+    }
   }
 
   caffe::SignalHandler signal_handler(
@@ -224,12 +259,23 @@ int train() {
     CopyLayers(solver.get(), FLAGS_weights);
   }
 
-  if (gpus.size() > 1) {
-    caffe::P2PSync<float> sync(solver, 0, gpus.size(), solver->param());
-    sync.Run(gpus);
-  } else {
-    LOG(INFO) << "Starting Optimization";
-    solver->Solve();
+  if (!FLAGS_par.empty()) {
+    if (FLAGS_par == "MPISyncGPU") {
+      caffe::MPISyncGPU<float> sync(solver);
+      sync.Run();
+    }
+    else {
+      LOG(ERROR) << "unrecognized -par value: " << FLAGS_par;
+    }
+  }
+  else {
+    if (gpus.size() > 1) {
+      caffe::P2PSync<float> sync(solver, 0, gpus.size(), solver->param());
+      sync.Run(gpus);
+    } else {
+      LOG(INFO) << "Starting Optimization";
+      solver->Solve();
+    }
   }
   LOG(INFO) << "Optimization Done.";
 
@@ -442,6 +488,7 @@ int time() {
 RegisterBrewFunction(time);
 
 int main(int argc, char** argv) {
+  caffe::mpi::init(&argc, &argv);
   // Print output to stderr (while still logging).
   FLAGS_alsologtostderr = 1;
   // Set version
@@ -458,6 +505,13 @@ int main(int argc, char** argv) {
   caffe::GlobalInit(&argc, &argv);
 
   if (argc == 2) {
+    if (FLAGS_par != "") {
+      // only log info from master
+      if (caffe::mpi::comm_rank() > 0) {
+        FLAGS_minloglevel = 2;
+      }
+      LOG(INFO) << "MPI is initialized, disabling logging from other ranks";
+    }
 #ifdef WITH_PYTHON_LAYER
     try {
 #endif

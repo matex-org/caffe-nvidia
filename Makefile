@@ -185,6 +185,7 @@ LIBRARIES += glog gflags protobuf boost_system boost_filesystem m hdf5_hl hdf5
 # handle IO dependencies
 USE_LEVELDB ?= 1
 USE_LMDB ?= 1
+USE_PNETCDF ?= 1
 USE_OPENCV ?= 1
 
 ifeq ($(USE_LEVELDB), 1)
@@ -192,6 +193,9 @@ ifeq ($(USE_LEVELDB), 1)
 endif
 ifeq ($(USE_LMDB), 1)
 	LIBRARIES += lmdb
+endif
+ifeq ($(USE_PNETCDF), 1)
+	LIBRARIES += pnetcdf
 endif
 ifeq ($(USE_OPENCV), 1)
 	LIBRARIES += opencv_core opencv_highgui opencv_imgproc 
@@ -311,6 +315,8 @@ ifneq (,$(findstring clang++,$(CXX)))
 	STATIC_LINK_COMMAND := -Wl,-force_load $(STATIC_NAME)
 else ifneq (,$(findstring g++,$(CXX)))
 	STATIC_LINK_COMMAND := -Wl,--whole-archive $(STATIC_NAME) -Wl,--no-whole-archive
+else ifneq (,$(findstring mpi,$(CXX)))
+    STATIC_LINK_COMMAND := -Wl,--whole-archive $(STATIC_NAME) -Wl,--no-whole-archive
 else
   # The following line must not be indented with a tab, since we are not inside a target
   $(error Cannot static link with the $(CXX) compiler)
@@ -332,6 +338,11 @@ ifeq ($(USE_CUDNN), 1)
 	COMMON_FLAGS += -DUSE_CUDNN
 endif
 
+# MPI configuration.
+ifeq ($(USE_MPI), 1)
+    COMMON_FLAGS += -DUSE_MPI
+endif
+
 # NCCL acceleration configuration
 ifeq ($(USE_NCCL), 1)
 	LIBRARIES += nccl
@@ -350,6 +361,9 @@ ifeq ($(USE_LMDB), 1)
 ifeq ($(ALLOW_LMDB_NOLOCK), 1)
 	COMMON_FLAGS += -DALLOW_LMDB_NOLOCK
 endif
+endif
+ifeq ($(USE_PNETCDF), 1)
+	COMMON_FLAGS += -DUSE_PNETCDF
 endif
 
 # CPU-only configuration

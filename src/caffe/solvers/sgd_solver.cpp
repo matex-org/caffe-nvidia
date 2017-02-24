@@ -149,6 +149,7 @@ void SGDSolver<Dtype>::Regularize(int param_id) {
   Dtype weight_decay = this->param_.weight_decay();
   string regularization_type = this->param_.regularization_type();
   Dtype local_decay = weight_decay * net_params_weight_decay[param_id];
+  local_decay /= scale_on_apply();
   switch (Caffe::mode()) {
   case Caffe::CPU: {
     if (local_decay) {
@@ -215,6 +216,7 @@ void SGDSolver<Dtype>::ComputeUpdateValue(int param_id, Dtype rate) {
   const vector<float>& net_params_lr = this->net_->params_lr();
   Dtype momentum = this->param_.momentum();
   Dtype local_rate = rate * net_params_lr[param_id];
+  local_rate *= scale_on_apply();
   // Compute the update to history, then copy it to the parameter diff.
   switch (Caffe::mode()) {
   case Caffe::CPU: {

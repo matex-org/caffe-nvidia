@@ -5,6 +5,9 @@
 # cuDNN version 4 or higher is required.
 # USE_CUDNN := 1
 
+# MPI acceleration switch (uncomment to build with MPI).
+# USE_MPI := 1
+
 # NCCL acceleration switch (uncomment to build with NCCL)
 # See https://github.com/NVIDIA/nccl
 # USE_NCCL := 1
@@ -17,6 +20,7 @@
 # USE_OPENCV := 0
 # USE_LEVELDB := 0
 # USE_LMDB := 0
+# USE_PNETCDF := 0
 
 # uncomment to allow MDB_NOLOCK when reading LMDB files (only if necessary)
 #	You should not set this flag if you will be reading LMDBs with any
