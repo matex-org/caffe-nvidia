@@ -188,10 +188,11 @@ int train() {
   get_gpus(&gpus);
   if (!FLAGS_par.empty()) {
     // Set mode and device id[s]
-    if (gpus.size() == 0) {
+    if (gpus.size() == 0 && FLAGS_par.find("GPU") == string::npos) {
       LOG(INFO) << "Use CPU.";
       Caffe::set_mode(Caffe::CPU);
     } else {
+      LOG(INFO) << "Use GPU.";
       int count = 0;
       int node_rank = caffe::mpi::node_rank();
       int node_size = caffe::mpi::node_size();

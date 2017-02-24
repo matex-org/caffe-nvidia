@@ -63,7 +63,6 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver)
   this->configure(solver_.get());
   solver_->add_callback(this);
 
-  caffe::mpi::bcast(data_, size_, 0, comm_);
   solver_->set_scale_on_apply(Dtype(1.0 / comm_size_));
 
   cpu_ptr_ = new Dtype[size_];
