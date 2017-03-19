@@ -187,6 +187,7 @@ USE_LEVELDB ?= 1
 USE_LMDB ?= 1
 USE_PNETCDF ?= 1
 USE_OPENCV ?= 1
+USE_MPI ?= 0
 
 ifeq ($(USE_LEVELDB), 1)
 	LIBRARIES += leveldb snappy
@@ -207,6 +208,15 @@ ifeq ($(USE_OPENCV), 1)
 endif
 PYTHON_LIBRARIES ?= boost_python python2.7
 WARNINGS := -Wall -Wno-sign-compare
+
+# MPI support
+ifeq ($(USE_MPI), 1)
+  COMMON_FLAGS += -DUSE_MPI
+ #ifneq (,$(findstring mpi,$(CXX)))
+ #  CXXFLAGS += -mt_mpi
+ #  LINKFLAGS += -mt_mpi
+ #endif
+endif
 
 ##############################
 # Set build directories
@@ -389,6 +399,12 @@ ifeq ($(BLAS), mkl)
 else ifeq ($(BLAS), open)
 	# OpenBLAS
 	LIBRARIES += openblas
+else ifeq ($(BLAS), netlib)
+	# netlib
+	LIBRARIES += cblas
+else ifeq ($(BLAS), essl)
+	COMMON_FLAGS += -DUSE_ESSL
+	LIBRARIES += esslsmp
 else
 	# ATLAS
 	ifeq ($(LINUX), 1)
@@ -460,22 +476,17 @@ endif
 ##############################
 .PHONY: all lib test clean docs linecount lint lintclean tools examples $(DIST_ALIASES) \
 	py mat py$(PROJECT) mat$(PROJECT) proto runtest \
-	superclean supercleanlist supercleanfiles warn everything
-
-# MPI support
-ifeq ($(USE_MPI), 1)
-  COMMON_FLAGS += -DUSE_MPI
- #ifneq (,$(findstring mpi,$(CXX)))
- #  CXXFLAGS += -mt_mpi
- #  LINKFLAGS += -mt_mpi
- #endif
-endif
+	superclean supercleanlist supercleanfiles warn everything jeff
 
 all: lib tools examples
 
 lib: $(STATIC_NAME) $(DYNAMIC_NAME)
 
 everything: $(EVERYTHING_TARGETS)
+
+jeff:
+	@ echo "USE_MPI=$(USE_MPI)"
+	@ echo "COMMON_FLAGS=$(COMMON_FLAGS)"
 
 linecount:
 	cloc --read-lang-def=$(PROJECT).cloc \

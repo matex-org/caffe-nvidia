@@ -168,9 +168,15 @@ void MPINCCLAsync<Dtype>::soft_barrier() {
 template<typename Dtype>
 void MPINCCLAsync<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
+#ifdef USE_NCCL
+#ifdef USE_MPI
+#ifndef CPU_ONLY
   CUDA_CHECK(cudaStreamSynchronize(stream_));
   CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
   //MPI_Barrier(comm_);
+#endif
+#endif
+#endif
 }
 
 template<typename Dtype>
