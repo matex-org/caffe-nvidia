@@ -106,11 +106,16 @@ void SGDSolver<Dtype>::ApplyUpdate() {
     LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate;
   }
   ClipGradients();
-  for (int param_id = 0; param_id < this->net_->learnable_params().size();
-       ++param_id) {
-    Normalize(param_id);
-    Regularize(param_id);
-    ComputeUpdateValue(param_id, rate);
+  //for (int param_id = 0; param_id < this->net_->learnable_params().size(); ++param_id)
+  for (int param_id = this->net_->learnable_params().size()-1; param_id >= 0; --param_id)
+  {
+    int _param_id = param_id;
+    for (int i = 0; i < callbacks_.size(); ++i) {
+      _param_id = callbacks_[i]->on_apply(param_id);
+    }
+    Normalize(_param_id);
+    Regularize(_param_id);
+    ComputeUpdateValue(_param_id, rate);
   }
   this->net_->Update();
 }

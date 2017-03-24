@@ -14,8 +14,11 @@ namespace bp = boost::python;
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
 #include "caffe/mpi.hpp"
+#include "caffe/parallel/mpi_async_params_gpu.hpp"
+#include "caffe/parallel/mpi_gossip_params_gpu.hpp"
 #include "caffe/parallel/mpi_nccl_async.hpp"
 #include "caffe/parallel/mpi_nccl_sync.hpp"
+#include "caffe/parallel/mpi_sync_gpu.hpp"
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
@@ -52,8 +55,15 @@ DEFINE_string(sigint_effect, "stop",
 DEFINE_string(sighup_effect, "snapshot",
              "Optional; action to take when a SIGHUP signal is received: "
              "snapshot, stop or none.");
+DEFINE_int32(comm_threads, 1,
+    "Optional; multinode mode,"
+    " The number of threads used by communication code.");
 DEFINE_string(par, "",
         "Optional; parallelization strategy, e.g., MPINCCLSync");
+DEFINE_bool(cube, true, "for MPIGossipParamsGPU, use hypercube");
+DEFINE_bool(avgdata, true, "for MPIGossipParamsGPU, average the params also");
+DEFINE_bool(rotate, true, "for MPIGossipParamsGPU, rotate comm partner");
+DEFINE_bool(batchwise, true, "for MPIGossipParamsGPU, update pair each batch (true) or layer (false)");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -259,13 +269,34 @@ int train() {
     }
   }
   else {
-    if (FLAGS_par == "MPINCCLSync") {
+    if (FLAGS_par == "MPISyncGPU") {
+      caffe::MPISyncGPU<float> sync(solver, solver->param());
+      sync.Run();
+    }
+    if (FLAGS_par == "MPIAsyncParamsGPU") {
+      caffe::MPIAsyncParamsGPU<float> sync(solver, solver->param(),
+          FLAGS_comm_threads);
+      sync.Run();
+    }
+    else if (FLAGS_par == "MPIGossipParamsGPU") {
+      caffe::MPIGossipParamsGPU<float> sync(solver, solver->param(),
+          FLAGS_comm_threads,
+          FLAGS_cube,
+          FLAGS_avgdata,
+          FLAGS_rotate,
+          FLAGS_batchwise);
+      sync.Run();
+    }
+    else if (FLAGS_par == "MPINCCLSync") {
       caffe::MPINCCLSync<float> sync(solver, solver->param());
       sync.Run();
     }
     else if (FLAGS_par == "MPINCCLAsync") {
       caffe::MPINCCLAsync<float> sync(solver, solver->param());
       sync.Run();
+    }
+    else {
+      LOG(ERROR) << "unrecognized FLAGS_par";
     }
   }
   LOG(INFO) << "Optimization Done.";

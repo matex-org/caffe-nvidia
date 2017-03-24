@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdexcept>
 #include <unistd.h> // for gethostid()
+#include <vector>
 #include "caffe/mpi.hpp"
 
 namespace caffe {
@@ -80,6 +81,21 @@ MPI_Comm comm_dup(MPI_Comm comm) {
 
   if (MPI_SUCCESS != MPI_Comm_dup(comm, &newcomm)) {
     throw std::runtime_error("MPI_Comm_dup failed");
+    return MPI_COMM_NULL;
+  }
+
+  return newcomm;
+}
+
+MPI_Comm split(int color, int key, MPI_Comm comm) {
+  MPI_Comm newcomm;
+
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Comm_split(comm, color, key, &newcomm)) {
+    throw std::runtime_error("MPI_Comm_split failed");
     return MPI_COMM_NULL;
   }
 
@@ -286,6 +302,28 @@ void allreduce(double* buffer, int count, MPI_Op op, MPI_Comm comm) {
   }
 }
 
+void iallreduce(MPI_Request &request, float* buffer, int count, MPI_Op op, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Iallreduce(MPI_IN_PLACE, buffer, count,
+              MPI_FLOAT, op, comm, &request)) {
+    throw std::runtime_error("MPI_Iallreduce failed (allreduce float)");
+  }
+}
+
+void iallreduce(MPI_Request &request, double* buffer, int count, MPI_Op op, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Iallreduce(MPI_IN_PLACE, buffer, count,
+              MPI_DOUBLE, op, comm, &request)) {
+    throw std::runtime_error("MPI_Iallreduce failed (allreduce double)");
+  }
+}
+
 void bcast(float* buffer, int count, int root, MPI_Comm comm) {
   if (MPI_COMM_NULL == comm) {
     comm = get_comm_default();
@@ -294,6 +332,20 @@ void bcast(float* buffer, int count, int root, MPI_Comm comm) {
   if (MPI_SUCCESS != MPI_Bcast(buffer, count, MPI_FLOAT, root, comm)) {
     throw std::runtime_error("MPI_Bcast failed");
   }
+}
+
+void waitall(std::vector<MPI_Request> &requests) {
+  if (MPI_SUCCESS != MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE)) {
+    throw std::runtime_error("MPI_Waitall failed");
+  }
+}
+
+bool test(MPI_Request &request) {
+  int flag = 0;
+  if (MPI_SUCCESS != MPI_Test(&request, &flag, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Test failed");
+  }
+  return flag;
 }
 
 void bcast(double* buffer, int count, int root, MPI_Comm comm) {
@@ -305,6 +357,117 @@ void bcast(double* buffer, int count, int root, MPI_Comm comm) {
     throw std::runtime_error("MPI_Bcast failed");
   }
 }
+
+void send(const float* buffer, int count, int dest, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Send(buffer, count, MPI_FLOAT, dest, tag, comm)) {
+    throw std::runtime_error("MPI_Send failed (float)");
+  }
+}
+
+void send(const double* buffer, int count, int dest, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Send(buffer, count, MPI_DOUBLE, dest, tag, comm)) {
+    throw std::runtime_error("MPI_Send failed (double)");
+  }
+}
+
+void recv(float *buffer, int count, int source, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Recv(buffer, count, MPI_FLOAT, source, tag, comm, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Recv failed (float)");
+  }
+}
+
+void recv(double *buffer, int count, int source, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Recv(buffer, count, MPI_DOUBLE, source, tag, comm, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Recv failed (double)");
+  }
+}
+
+void sendrecv(const float *sendbuf, int sendcount, int dest, int sendtag,
+    float *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm)
+{
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Sendrecv(sendbuf, sendcount, MPI_FLOAT, dest, sendtag,
+        recvbuf, recvcount, MPI_FLOAT, source, recvtag,
+        comm, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Sendrecv failed (float)");
+  }
+}
+
+void sendrecv(const double *sendbuf, int sendcount, int dest, int sendtag,
+    double *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm)
+{
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Sendrecv(sendbuf, sendcount, MPI_DOUBLE, dest, sendtag,
+        recvbuf, recvcount, MPI_DOUBLE, source, recvtag,
+        comm, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Sendrecv failed (double)");
+  }
+}
+
+void isend(MPI_Request &request, const float* buffer, int count, int dest, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Isend(buffer, count, MPI_FLOAT, dest, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Isend failed (float)");
+  }
+}
+
+void isend(MPI_Request &request, const double* buffer, int count, int dest, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Isend(buffer, count, MPI_DOUBLE, dest, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Isend failed (double)");
+  }
+}
+
+void irecv(MPI_Request &request, float *buffer, int count, int source, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Irecv(buffer, count, MPI_FLOAT, source, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Irecv failed (float)");
+  }
+}
+
+void irecv(MPI_Request &request, double *buffer, int count, int source, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Irecv(buffer, count, MPI_DOUBLE, source, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Irecv failed (double)");
+  }
+}
+
 
 #else
 

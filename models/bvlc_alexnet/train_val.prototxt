@@ -10,11 +10,11 @@ layer {
   transform_param {
     mirror: true
     crop_size: 227
-    mean_file: "/raid/data/imagenet_mean.binaryproto"
+    mean_file: "/lustre/atlas/scratch/dailyja/csc190/imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/raid/data/ilsvrc12_train_lmdb_0.nc"
-    batch_size: 32
+    source: "/lustre/atlas/scratch/dailyja/csc190/ilsvrc12_train_lmdb_0.nc"
+    batch_size: 64
     backend: LMDB
   }
 }
@@ -29,10 +29,10 @@ layer {
   transform_param {
     mirror: false
     crop_size: 227
-    mean_file: "/raid/data/imagenet_mean.binaryproto"
+    mean_file: "/lustre/atlas/scratch/dailyja/csc190/imagenet_mean.binaryproto"
   }
   data_param {
-    source: "/raid/data/ilsvrc12_val_lmdb.nc"
+    source: "/lustre/atlas/scratch/dailyja/csc190/ilsvrc12_val_lmdb.nc"
     batch_size: 50
     backend: LMDB
   }

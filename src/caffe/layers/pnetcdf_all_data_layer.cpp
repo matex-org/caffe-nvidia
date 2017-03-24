@@ -80,6 +80,9 @@ void PnetCDFAllDataLayer<Dtype>::load_pnetcdf_file_data(const string& filename) 
   MPI_Offset remain;
   MPI_Offset start;
   MPI_Offset stop;
+  CPUTimer timer;
+
+  timer.Start();
 
   retval = ncmpi_open(comm_, filename.c_str(),
           NC_NOWRITE, MPI_INFO_NULL, &ncid);
@@ -297,6 +300,8 @@ void PnetCDFAllDataLayer<Dtype>::load_pnetcdf_file_data(const string& filename) 
     caffe::mpi::allreduce(label_sum);
     LOG(INFO) << "Label Sum: " << label_sum;
   }
+
+  LOG(INFO) << "Data load time: " << timer.MilliSeconds() << " ms.";
 #else
   NO_PNETCDF;
 #endif

@@ -5,6 +5,8 @@
 #include <mpi.h>
 #endif
 
+#include <vector>
+
 #define NO_MPI LOG(FATAL) << "Cannot use MPI unless USE_MPI is enabled during make."
 
 namespace caffe {
@@ -22,6 +24,7 @@ int query_thread();
 void finalize();
 
 MPI_Comm comm_dup(MPI_Comm comm=MPI_COMM_NULL);
+MPI_Comm split(int color, int key, MPI_Comm comm=MPI_COMM_NULL);
 void comm_free(MPI_Comm comm);
 int comm_rank(MPI_Comm comm=MPI_COMM_NULL);
 int comm_size(MPI_Comm comm=MPI_COMM_NULL);
@@ -49,8 +52,35 @@ void allreduce(float* buffer, int count,
 void allreduce(double* buffer, int count,
         MPI_Op op=MPI_SUM, MPI_Comm comm=MPI_COMM_NULL);
 
+void iallreduce(MPI_Request &request, float* buffer, int count,
+        MPI_Op op=MPI_SUM, MPI_Comm comm=MPI_COMM_NULL);
+void iallreduce(MPI_Request &request, double* buffer, int count,
+        MPI_Op op=MPI_SUM, MPI_Comm comm=MPI_COMM_NULL);
+
+void waitall(std::vector<MPI_Request> &requests);
+bool test(MPI_Request &request);
+
 void bcast(float* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 void bcast(double* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
+
+void send(const float *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+void send(const double *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+
+void recv(float *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+void recv(double *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+
+void sendrecv(const float *sendbuf, int sendcount, int dest, int sendtag,
+    float *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm=MPI_COMM_NULL);
+void sendrecv(const double *sendbuf, int sendcount, int dest, int sendtag,
+    double *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm=MPI_COMM_NULL);
+
+void isend(MPI_Request &request, const float *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+void isend(MPI_Request &request, const double *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+
+void irecv(MPI_Request &request, float *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+void irecv(MPI_Request &request, double *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 
 #else
 

@@ -146,7 +146,7 @@ void MPINCCLSync<Dtype>::allreduce() {
   NCCLCHECK(ncclAllReduce((const void *)diff_, (void*)diff_, size_,
         nccl::dataType<Dtype>::type, ncclSum, ncclComm_, stream_));
   CUDA_CHECK(cudaStreamSynchronize(stream_));
-  LOG(INFO) << "time in allreduce " << timer.MilliSeconds();
+  DLOG(INFO) << "time in allreduce " << timer.MilliSeconds();
 #else
   NO_GPU;
 #endif

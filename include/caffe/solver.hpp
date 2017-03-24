@@ -89,9 +89,14 @@ class Solver {
     virtual void on_start() {}
     virtual void allreduce() {}
     virtual void soft_barrier() {}
+    virtual int on_apply(int param_id) { return param_id; }
 
     template <typename T>
+    friend class SGDSolver;
+    template <typename T>
     friend class Solver;
+    template <typename T>
+    friend class Net;
   };
   const vector<Callback*>& callbacks() const { return callbacks_; }
   void add_callback(Callback* value) {
