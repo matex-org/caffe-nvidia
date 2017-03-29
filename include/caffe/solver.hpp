@@ -87,6 +87,7 @@ class Solver {
 
    protected:
     virtual void on_start() {}
+    virtual void on_begin() {}
     virtual void allreduce() {}
     virtual void soft_barrier() {}
     virtual int on_apply(int param_id) { return param_id; }

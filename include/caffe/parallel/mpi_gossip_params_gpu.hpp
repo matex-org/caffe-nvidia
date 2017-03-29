@@ -17,7 +17,7 @@ class MPIGossipParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callba
  public:
   explicit MPIGossipParamsGPU(shared_ptr<Solver<Dtype> > root_solver,
           const SolverParameter& param,
-          int comm_threads, bool cube, bool avgdata, bool rotate, bool batchwise);
+          int comm_threads, bool cube, bool avgdata, bool alldata, bool rotate, bool batchwise);
   virtual ~MPIGossipParamsGPU();
 
   inline const shared_ptr<Solver<Dtype> >& solver() const {
@@ -33,6 +33,7 @@ class MPIGossipParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callba
   class Reducer;
 
   void on_start();
+  void on_begin();
   void allreduce();
   void allreduce(int param_id);
   int on_apply(int param_id);
@@ -64,6 +65,7 @@ class MPIGossipParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callba
   vector<Dtype*> param_datas_;
   bool cube_;
   bool avgdata_;
+  bool alldata_;
   bool rotate_;
   bool batchwise_;
 

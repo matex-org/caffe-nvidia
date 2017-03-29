@@ -60,8 +60,10 @@ DEFINE_int32(comm_threads, 1,
     " The number of threads used by communication code.");
 DEFINE_string(par, "",
         "Optional; parallelization strategy, e.g., MPINCCLSync");
+DEFINE_bool(coherent, false, "can we use GPU allocated pointers in MPI calls");
 DEFINE_bool(cube, true, "for MPIGossipParamsGPU, use hypercube");
 DEFINE_bool(avgdata, true, "for MPIGossipParamsGPU, average the params also");
+DEFINE_bool(alldata, true, "for MPIGossipParamsGPU, average the params also");
 DEFINE_bool(rotate, true, "for MPIGossipParamsGPU, rotate comm partner");
 DEFINE_bool(batchwise, true, "for MPIGossipParamsGPU, update pair each batch (true) or layer (false)");
 
@@ -270,7 +272,7 @@ int train() {
   }
   else {
     if (FLAGS_par == "MPISyncGPU") {
-      caffe::MPISyncGPU<float> sync(solver, solver->param());
+      caffe::MPISyncGPU<float> sync(solver, solver->param(), FLAGS_coherent);
       sync.Run();
     }
     if (FLAGS_par == "MPIAsyncParamsGPU") {
@@ -283,6 +285,7 @@ int train() {
           FLAGS_comm_threads,
           FLAGS_cube,
           FLAGS_avgdata,
+          FLAGS_alldata,
           FLAGS_rotate,
           FLAGS_batchwise);
       sync.Run();
@@ -590,6 +593,10 @@ int main(int argc, char** argv) {
         FLAGS_minloglevel = 2;
       }
       LOG(INFO) << "MPI is initialized, disabling logging from other ranks";
+    }
+    else {
+      /* init mpi anyway so we can use pnetcdf reader */
+      caffe::mpi::init(&argc, &argv);
     }
 #ifdef WITH_PYTHON_LAYER
     try {

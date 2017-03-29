@@ -15,6 +15,7 @@
 #include "caffe/parallel.hpp"
 #include "caffe/parallel/mpi_nccl_sync.hpp"
 #include "caffe/util/blocking_queue.hpp"
+#include "caffe/util/gpu_memory.hpp"
 
 #ifdef USE_NCCL
 #include "nccl.h"
@@ -92,7 +93,11 @@ MPINCCLSync<Dtype>::MPINCCLSync(shared_ptr<Solver<Dtype> > root_solver,
     printf("NCCL Init failed (%d) '%s'\n", ret, ncclGetErrorString(ret));
     exit(1);
   }
+#if 0
   CUDA_CHECK(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
+#else
+  stream_ = GPUMemory::device_stream(node_rank);
+#endif
 
   NCCLCHECK(ncclBcast((void*)data_, size_, nccl::dataType<Dtype>::type,
         0, ncclComm_, stream_));

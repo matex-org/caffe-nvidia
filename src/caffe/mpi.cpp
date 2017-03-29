@@ -1,6 +1,7 @@
 #ifdef USE_MPI
 #include <mpi.h>
 #endif
+#include <glog/logging.h>
 #include <stdlib.h>
 #include <stdexcept>
 #include <unistd.h> // for gethostid()
@@ -28,22 +29,35 @@ void set_comm_default(MPI_Comm comm) {
 }
 
 void init(int *argc, char ***argv) {
+  char name[MPI_MAX_PROCESSOR_NAME];
+  int requested = MPI_THREAD_SINGLE;
+  int rank = 0;
+  int size = 0;
+  int namelen = 0;
+
   if (!initialized()) {
     int provided;
     if (MPI_SUCCESS != MPI_Init_thread(
-          argc, argv, MPI_THREAD_MULTIPLE, &provided)) {
+          argc, argv, requested, &provided)) {
 
       throw std::runtime_error("MPI_Init_thread failed");
     }
   }
 
-  if (MPI_THREAD_MULTIPLE != query_thread()) {
-    throw std::runtime_error("MPI threading level must be == MPI_THREAD_MULTIPLE");
+  if (requested != query_thread()) {
+    throw std::runtime_error("MPI threading level does not match requested");
   }
 
   if (0 != atexit(finalize)) {
     throw std::runtime_error("atexit(caffe::mpi::finalize) failed");
   }
+
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Get_processor_name(name, &namelen);
+
+  LOG(INFO) << "Process rank " << rank << " from number of " << size
+            << " processes running on " << name;
 }
 
 bool initialized() {

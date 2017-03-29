@@ -16,7 +16,9 @@ namespace caffe {
 template<typename Dtype>
 class MPISyncGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
  public:
-  explicit MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver, const SolverParameter& param);
+  explicit MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver,
+          const SolverParameter& param,
+          bool coherent);
   virtual ~MPISyncGPU();
 
   inline const shared_ptr<Solver<Dtype> >& solver() const {
@@ -36,7 +38,9 @@ class MPISyncGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
   int comm_size_;
   shared_ptr<Solver<Dtype> > solver_;
   Timer timer_;
+  bool coherent_;
 
+  Dtype* cpu_ptr_;
   using Params<Dtype>::size_;
   using Params<Dtype>::data_;
   using Params<Dtype>::diff_;

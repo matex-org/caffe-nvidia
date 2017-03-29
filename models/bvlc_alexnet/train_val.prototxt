@@ -14,7 +14,7 @@ layer {
   }
   data_param {
     source: "/lustre/atlas/scratch/dailyja/csc190/ilsvrc12_train_lmdb_0.nc"
-    batch_size: 64
+    batch_size: 256
     backend: LMDB
   }
 }

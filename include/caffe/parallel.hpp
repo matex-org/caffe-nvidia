@@ -20,6 +20,47 @@
 
 namespace caffe {
 
+enum Op {
+  copy,
+  replace_cpu,
+  replace_gpu,
+  replace_cpu_diff,
+  replace_gpu_diff
+};
+
+template<typename Dtype>
+static void apply_buffers(const vector<Blob<Dtype>*>& blobs,
+                          Dtype* buffer, size_t total_size, Op op) {
+  Dtype* ptr = buffer;
+  for (int i = 0; i < blobs.size(); ++i) {
+    int size = blobs[i]->count();
+    switch (op) {
+      case copy: {
+        // Init buffer to current values of blobs
+        caffe_copy(size,
+                   reinterpret_cast<const Dtype*>(blobs[i]->data()->cpu_data()),
+                   ptr);
+        break;
+      }
+      case replace_cpu:
+        blobs[i]->data()->set_cpu_data(ptr);
+        break;
+      case replace_gpu:
+        blobs[i]->data()->set_gpu_data(ptr);
+        break;
+      case replace_cpu_diff:
+        blobs[i]->diff()->set_cpu_data(ptr);
+        break;
+      case replace_gpu_diff:
+        blobs[i]->diff()->set_gpu_data(ptr);
+        break;
+    }
+    ptr += size;
+  }
+  // total_size is at least one byte
+  CHECK_EQ(total_size, (ptr == buffer ? 1 : ptr - buffer));
+}
+
 // Represents a net parameters. Once a net is created, its parameter buffers can
 // be replaced by ones from Params, to allow parallelization. Params ensures
 // parameters are allocated in one consecutive array.

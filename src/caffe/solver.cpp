@@ -232,6 +232,9 @@ void Solver<Dtype>::Step(int iters) {
         callbacks_[i]->soft_barrier();
       }
     }
+    for (int i = 0; i < callbacks_.size(); ++i) {
+      callbacks_[i]->on_begin();
+    }
     const bool display = param_.display() && iter_ % param_.display() == 0;
     net_->set_debug_info(display && param_.debug_info());
     // accumulate the loss and gradient
