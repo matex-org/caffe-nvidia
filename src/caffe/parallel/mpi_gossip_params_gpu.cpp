@@ -66,16 +66,17 @@ class MPIGossipParamsGPU<Dtype>::Reducer : public InternalThread {
 #if 1
             vector<MPI_Request> requests(2);
             caffe::mpi::irecv(requests[0], sync_->data_all_,
-                sync_->size_, sync_->recv_pair_, 3333, comm);
+                sync_->size_, sync_->recv_pair_, 1234, comm);
             caffe::mpi::isend(requests[1], sync_->data_,
-                sync_->size_, sync_->send_pair_, 3333, comm);
+                sync_->size_, sync_->send_pair_, 1234, comm);
             caffe::mpi::waitall(requests);
 #endif
             time_in_comm_ += timer_comm_.MilliSeconds();
           }
           else {
             Blob<Dtype> *blob = sync_->params_[param_id];
-            MPI_Comm comm = sync_->comms_[param_id];
+            //MPI_Comm comm = sync_->comms_[param_id];
+            MPI_Comm comm = sync_->comms_[0];
             Dtype *recvdiff = sync_->param_diffs_[param_id];
             Dtype *recvdata = sync_->param_datas_[param_id];
 #ifdef USE_MPI
@@ -94,21 +95,21 @@ class MPIGossipParamsGPU<Dtype>::Reducer : public InternalThread {
             if (sync_->avgdata_ && !sync_->alldata_) {
               vector<MPI_Request> requests(4);
               caffe::mpi::irecv(requests[0], recvdiff,
-                  blob->count(), sync_->recv_pair_, 2222, comm);
+                  blob->count(), sync_->recv_pair_, 2000+param_id, comm);
               caffe::mpi::irecv(requests[1], recvdata,
-                  blob->count(), sync_->recv_pair_, 3333, comm);
+                  blob->count(), sync_->recv_pair_, 4000+param_id, comm);
               caffe::mpi::isend(requests[2], (const Dtype*)blob->gpu_diff(),
-                  blob->count(), sync_->send_pair_, 2222, comm);
+                  blob->count(), sync_->send_pair_, 2000+param_id, comm);
               caffe::mpi::isend(requests[3], (const Dtype*)blob->gpu_data(),
-                  blob->count(), sync_->send_pair_, 3333, comm);
+                  blob->count(), sync_->send_pair_, 4000+param_id, comm);
               caffe::mpi::waitall(requests);
             }
             else {
               vector<MPI_Request> requests(2);
               caffe::mpi::irecv(requests[0], recvdiff,
-                  blob->count(), sync_->recv_pair_, 2222, comm);
+                  blob->count(), sync_->recv_pair_, 2000+param_id, comm);
               caffe::mpi::isend(requests[1], (const Dtype*)blob->gpu_diff(),
-                  blob->count(), sync_->send_pair_, 2222, comm);
+                  blob->count(), sync_->send_pair_, 2000+param_id, comm);
               caffe::mpi::waitall(requests);
             }
 #endif
@@ -317,6 +318,11 @@ MPIGossipParamsGPU<Dtype>::MPIGossipParamsGPU(
     param_all_[i] = new BlockingQueue<int>;
   }
   
+  /* FOR NOW */
+  if (comm_threads != 1) {
+      LOG(ERROR) << "comm_threads must be 1";
+      exit(EXIT_FAILURE);
+  }
 #if 0
   // Start the gradient allreduce threads
   reducers.resize(comm_threads);
