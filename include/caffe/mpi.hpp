@@ -5,6 +5,7 @@
 #include <mpi.h>
 #endif
 
+#include <string>
 #include <vector>
 
 #define NO_MPI LOG(FATAL) << "Cannot use MPI unless USE_MPI is enabled during make."
@@ -18,7 +19,7 @@ extern MPI_Comm default_comm_;
 MPI_Comm get_comm_default();
 void set_comm_default(MPI_Comm comm=MPI_COMM_WORLD);
 
-void init(int *argc, char ***argv);
+void init(int *argc, char ***argv, const std::string &FLAGS_mpi);
 bool initialized();
 int query_thread();
 void finalize();

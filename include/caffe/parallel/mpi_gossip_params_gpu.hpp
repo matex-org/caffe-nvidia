@@ -63,6 +63,7 @@ class MPIGossipParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callba
   Dtype *data_all_;
   vector<Dtype*> param_diffs_;
   vector<Dtype*> param_datas_;
+  int comm_threads_;
   bool cube_;
   bool avgdata_;
   bool alldata_;

@@ -58,12 +58,19 @@ class MPIGossipParamsGPU<Dtype>::Reducer : public InternalThread {
           timer_comm_.Start();
           if (-1 == param_id) {
             MPI_Comm comm = sync_->comms_[0];
+#if 0
+            caffe::mpi::sendrecv(
+                sync_->data_, sync_->size_, sync_->send_pair_, 1234,
+                sync_->data_all_, sync_->size_, sync_->recv_pair_, 1234, comm);
+#endif
+#if 1
             vector<MPI_Request> requests(2);
             caffe::mpi::irecv(requests[0], sync_->data_all_,
                 sync_->size_, sync_->recv_pair_, 3333, comm);
             caffe::mpi::isend(requests[1], sync_->data_,
                 sync_->size_, sync_->send_pair_, 3333, comm);
             caffe::mpi::waitall(requests);
+#endif
             time_in_comm_ += timer_comm_.MilliSeconds();
           }
           else {
@@ -235,6 +242,7 @@ MPIGossipParamsGPU<Dtype>::MPIGossipParamsGPU(
     data_all_(),
     param_diffs_(),
     param_datas_(),
+    comm_threads_(comm_threads),
     cube_(cube),
     avgdata_(avgdata),
     alldata_(alldata),
@@ -309,12 +317,14 @@ MPIGossipParamsGPU<Dtype>::MPIGossipParamsGPU(
     param_all_[i] = new BlockingQueue<int>;
   }
   
+#if 0
   // Start the gradient allreduce threads
   reducers.resize(comm_threads);
   for (int i = 0; i < comm_threads; ++i) {
     reducers[i] = new Reducer(this, i);
     reducers[i]->StartInternalThread();
   }
+#endif
 #else
   NO_MPI;
 #endif
@@ -336,6 +346,12 @@ MPIGossipParamsGPU<Dtype>::~MPIGossipParamsGPU() {
 template<typename Dtype>
 void MPIGossipParamsGPU<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
+  // Start the gradient allreduce threads
+  reducers.resize(comm_threads_);
+  for (int i = 0; i < comm_threads_; ++i) {
+    reducers[i] = new Reducer(this, i);
+    reducers[i]->StartInternalThread();
+  }
 }
 
 template<typename Dtype>

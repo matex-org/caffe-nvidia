@@ -203,6 +203,11 @@ MPIAsyncParamsGPU<Dtype>::~MPIAsyncParamsGPU() {
 template<typename Dtype>
 void MPIAsyncParamsGPU<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
+}
+
+template<typename Dtype>
+void MPIAsyncParamsGPU<Dtype>::on_begin() {
+  DLOG(INFO) << "on_begin()";
   for (int i=0; i<reducers.size(); ++i) {
     stats_sample_value(&reducers[i]->stats_queue_, reducers[i]->time_in_queue_);
     stats_sample_value(&reducers[i]->stats_comm_, reducers[i]->time_in_comm_);

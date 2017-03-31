@@ -92,12 +92,12 @@ MPISyncGPU<Dtype>::~MPISyncGPU() {
 
 template<typename Dtype>
 void MPISyncGPU<Dtype>::on_start() {
-  LOG(INFO) << "on_start()";
+  DLOG(INFO) << "on_start()";
 }
 
 template<typename Dtype>
 void MPISyncGPU<Dtype>::allreduce() {
-  LOG(INFO) << "allreduce()";
+  DLOG(INFO) << "allreduce()";
 #ifdef USE_MPI
   // Sum gradients
   timer_.Start();
@@ -113,7 +113,7 @@ void MPISyncGPU<Dtype>::allreduce() {
       caffe::mpi::allreduce(diff_, size_, MPI_SUM, comm_);
   }
   double time_comm_ = timer_.MilliSeconds();
-  LOG(INFO) << "time comm " << time_comm_;
+  DLOG(INFO) << "time comm " << time_comm_;
 #else
   NO_MPI;
 #endif

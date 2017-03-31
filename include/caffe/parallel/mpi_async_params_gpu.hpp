@@ -34,6 +34,7 @@ class MPIAsyncParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callbac
   class Reducer;
 
   void on_start();
+  void on_begin();
   void allreduce();
   void allreduce(int param_id);
   int on_apply(int param_id);

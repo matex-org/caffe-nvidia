@@ -4,6 +4,7 @@
 #include <glog/logging.h>
 #include <stdlib.h>
 #include <stdexcept>
+#include <string>
 #include <unistd.h> // for gethostid()
 #include <vector>
 #include "caffe/mpi.hpp"
@@ -28,12 +29,33 @@ void set_comm_default(MPI_Comm comm) {
   }
 }
 
-void init(int *argc, char ***argv) {
+void init(int *argc, char ***argv, const std::string &FLAGS_mpi) {
   char name[MPI_MAX_PROCESSOR_NAME];
   int requested = MPI_THREAD_SINGLE;
   int rank = 0;
   int size = 0;
   int namelen = 0;
+
+  if (FLAGS_mpi == "MPI_THREAD_SINGLE") {
+      LOG(INFO) << "MPI threading level set to MPI_THREAD_SINGLE";
+      requested = MPI_THREAD_SINGLE;
+  }
+  else if (FLAGS_mpi == "MPI_THREAD_FUNNELED") {
+      LOG(INFO) << "MPI threading level set to MPI_THREAD_FUNNELED";
+      requested = MPI_THREAD_FUNNELED;
+  }
+  else if (FLAGS_mpi == "MPI_THREAD_SERIALIZED") {
+      LOG(INFO) << "MPI threading level set to MPI_THREAD_SERIALIZED";
+      requested = MPI_THREAD_SERIALIZED;
+  }
+  else if (FLAGS_mpi == "MPI_THREAD_MULTIPLE") {
+      LOG(INFO) << "MPI threading level set to MPI_THREAD_MULTIPLE";
+      requested = MPI_THREAD_MULTIPLE;
+  }
+  else {
+      LOG(ERROR) << "unknown FLAGS_mpi provided";
+      exit(EXIT_FAILURE);
+  }
 
   if (!initialized()) {
     int provided;

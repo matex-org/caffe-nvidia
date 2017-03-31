@@ -66,6 +66,7 @@ DEFINE_bool(avgdata, true, "for MPIGossipParamsGPU, average the params also");
 DEFINE_bool(alldata, true, "for MPIGossipParamsGPU, average the params also");
 DEFINE_bool(rotate, true, "for MPIGossipParamsGPU, rotate comm partner");
 DEFINE_bool(batchwise, true, "for MPIGossipParamsGPU, update pair each batch (true) or layer (false)");
+DEFINE_string(mpi, "MPI_THREAD_SINGLE", "MPI threading level");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -586,7 +587,7 @@ int main(int argc, char** argv) {
 
   if (argc == 2) {
     if (FLAGS_par != "") {
-      caffe::mpi::init(&argc, &argv);
+      caffe::mpi::init(&argc, &argv, FLAGS_mpi);
       LOG(INFO) << "MPI rank " << caffe::mpi::comm_rank();
       // only log info from master
       if (caffe::mpi::comm_rank() > 0) {
@@ -596,7 +597,7 @@ int main(int argc, char** argv) {
     }
     else {
       /* init mpi anyway so we can use pnetcdf reader */
-      caffe::mpi::init(&argc, &argv);
+      caffe::mpi::init(&argc, &argv, FLAGS_mpi);
     }
 #ifdef WITH_PYTHON_LAYER
     try {
