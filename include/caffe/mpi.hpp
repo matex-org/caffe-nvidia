@@ -72,6 +72,12 @@ void send(const double *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=
 void recv(float *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 void recv(double *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 
+void sendrecv(const int *sendbuf, int sendcount, int dest, int sendtag,
+    int *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm=MPI_COMM_NULL);
+void sendrecv(const signed char *sendbuf, int sendcount, int dest, int sendtag,
+    signed char *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm=MPI_COMM_NULL);
 void sendrecv(const float *sendbuf, int sendcount, int dest, int sendtag,
     float *recvbuf, int recvcount, int source, int recvtag,
     MPI_Comm comm=MPI_COMM_NULL);

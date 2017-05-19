@@ -483,6 +483,36 @@ void recv(double *buffer, int count, int source, int tag, MPI_Comm comm) {
   }
 }
 
+void sendrecv(const int *sendbuf, int sendcount, int dest, int sendtag,
+    int *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm)
+{
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Sendrecv(sendbuf, sendcount, MPI_INT, dest, sendtag,
+        recvbuf, recvcount, MPI_INT, source, recvtag,
+        comm, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Sendrecv failed (int)");
+  }
+}
+
+void sendrecv(const signed char *sendbuf, int sendcount, int dest, int sendtag,
+    signed char *recvbuf, int recvcount, int source, int recvtag,
+    MPI_Comm comm)
+{
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Sendrecv(sendbuf, sendcount, MPI_CHAR, dest, sendtag,
+        recvbuf, recvcount, MPI_CHAR, source, recvtag,
+        comm, MPI_STATUS_IGNORE)) {
+    throw std::runtime_error("MPI_Sendrecv failed (char)");
+  }
+}
+
 void sendrecv(const float *sendbuf, int sendcount, int dest, int sendtag,
     float *recvbuf, int recvcount, int source, int recvtag,
     MPI_Comm comm)
