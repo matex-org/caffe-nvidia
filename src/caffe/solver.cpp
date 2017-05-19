@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "caffe/mpi.hpp"
 #include "caffe/solver.hpp"
 #include "caffe/util/format.hpp"
 #include "caffe/util/hdf5.hpp"
@@ -478,8 +479,13 @@ void Solver<Dtype>::CheckSnapshotWritePermissions() {
 
 template <typename Dtype>
 string Solver<Dtype>::SnapshotFilename(const string extension) {
+#if USE_MPI
+  return param_.snapshot_prefix() + "_rank_" + caffe::format_int(caffe::mpi::comm_rank()) + "_iter_" + caffe::format_int(iter_)
+    + extension;
+#else
   return param_.snapshot_prefix() + "_iter_" + caffe::format_int(iter_)
     + extension;
+#endif
 }
 
 template <typename Dtype>
@@ -504,6 +510,12 @@ template <typename Dtype>
 void Solver<Dtype>::Restore(const char* state_file) {
   CHECK(Caffe::root_solver());
   string state_filename(state_file);
+#if USE_MPI
+  size_t pos = state_filename.find("XXX");
+  if (pos != string::npos) {
+      state_filename.replace(pos, 3, caffe::format_int(caffe::mpi::comm_rank()));
+  }
+#endif
   if (state_filename.size() >= 3 &&
       state_filename.compare(state_filename.size() - 3, 3, ".h5") == 0) {
     RestoreSolverStateFromHDF5(state_filename);

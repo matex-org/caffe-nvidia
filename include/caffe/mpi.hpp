@@ -25,7 +25,9 @@ int query_thread();
 void finalize();
 
 MPI_Comm comm_dup(MPI_Comm comm=MPI_COMM_NULL);
-MPI_Comm split(int color, int key, MPI_Comm comm=MPI_COMM_NULL);
+MPI_Comm comm_split(int color, int key, MPI_Comm comm=MPI_COMM_NULL);
+MPI_Comm comm_create(MPI_Group group, MPI_Comm comm=MPI_COMM_NULL);
+MPI_Comm comm_create(const std::vector<int> &incl, MPI_Comm comm=MPI_COMM_NULL);
 void comm_free(MPI_Comm comm);
 int comm_rank(MPI_Comm comm=MPI_COMM_NULL);
 int comm_size(MPI_Comm comm=MPI_COMM_NULL);

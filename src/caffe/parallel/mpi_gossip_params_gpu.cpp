@@ -57,7 +57,7 @@ class MPIGossipParamsGPU<Dtype>::Reducer : public InternalThread {
           time_in_queue_ += timer_queue_.MilliSeconds();
           timer_comm_.Start();
           if (-1 == param_id) {
-            MPI_Comm comm = sync_->comms_[0];
+            MPI_Comm comm = sync_->comms_[sync_->mci_];
 #if 0
             caffe::mpi::sendrecv(
                 sync_->data_, sync_->size_, sync_->send_pair_, 1234,
@@ -75,8 +75,7 @@ class MPIGossipParamsGPU<Dtype>::Reducer : public InternalThread {
           }
           else {
             Blob<Dtype> *blob = sync_->params_[param_id];
-            //MPI_Comm comm = sync_->comms_[param_id];
-            MPI_Comm comm = sync_->comms_[0];
+            MPI_Comm comm = sync_->comms_[sync_->mci_];
             Dtype *recvdiff = sync_->param_diffs_[param_id];
             Dtype *recvdata = sync_->param_datas_[param_id];
 #ifdef USE_MPI
@@ -175,10 +174,11 @@ template<typename Dtype>
 void MPIGossipParamsGPU<Dtype>::next_cube_rotate() {
   if (hci_ > logp_) {
     hci_ = 0;
-    comm_rank_ = (comm_rank_+1) % comm_size_;
+    mci_ = (mci_+1)%comm_size_;
+    comm_rank_ = caffe::mpi::comm_rank(comms_[mci_]);
   }
   send_pair_ = comm_rank_ ^ int(pow(2,hci_));
-  recv_pair_ = MPI_ANY_SOURCE;
+  recv_pair_ = send_pair_;
   ++hci_;
 }
 
@@ -202,7 +202,8 @@ template<typename Dtype>
 void MPIGossipParamsGPU<Dtype>::next_diffuse_rotate() {
   if (hci_ > logp_) {
     hci_ = 0;
-    comm_rank_ = (comm_rank_+1) % comm_size_;
+    mci_ = (mci_+1)%comm_size_;
+    comm_rank_ = caffe::mpi::comm_rank(comms_[mci_]);
   }
   recv_pair_ = comm_rank_ + int(pow(2,hci_));
   send_pair_ = comm_rank_ - int(pow(2,hci_));
@@ -212,7 +213,6 @@ void MPIGossipParamsGPU<Dtype>::next_diffuse_rotate() {
   if (send_pair_ < 0) {
     send_pair_ = send_pair_ + comm_size_;
   }
-  recv_pair_ = MPI_ANY_SOURCE;
   ++hci_;
 }
 
@@ -231,6 +231,7 @@ MPIGossipParamsGPU<Dtype>::MPIGossipParamsGPU(
     comm_size_(),
     logp_(0),
     hci_(0),
+    mci_(0),
     send_pair_(0),
     recv_pair_(0),
     solver_(),
@@ -257,6 +258,7 @@ MPIGossipParamsGPU<Dtype>::MPIGossipParamsGPU(
 
   CUDA_CHECK(cudaGetDeviceCount(&count));
 
+#if 0
   // one MPI_Comm per parameter
   comms_.resize(params_.size());
   for (int i = 0; i < params_.size(); ++i) {
@@ -265,6 +267,28 @@ MPIGossipParamsGPU<Dtype>::MPIGossipParamsGPU(
   comm_size_ = caffe::mpi::comm_size(comms_[0]);
   node_rank = caffe::mpi::node_rank(comms_[0]);
   node_size = caffe::mpi::node_size(comms_[0]);
+#else
+  // one MPI_Comm per rank
+  Timer timer_comm_create_;
+  timer_comm_create_.Start();
+  comm_size_ = caffe::mpi::comm_size();
+  node_rank = caffe::mpi::node_rank();
+  node_size = caffe::mpi::node_size();
+  comms_.resize(comm_size_);
+  comms_[0] = caffe::mpi::comm_dup();
+  vector<int> ranks(comm_size_);
+  for (int i = 0; i < comm_size_; ++i) {
+    ranks[i] = i;
+  }
+  for (int i = 1; i < comm_size_; ++i) {
+    for (int j = 0; j < comm_size_; ++j) {
+      ranks[j] = (ranks[j]+1)%comm_size_;
+    }
+    comms_[i] = caffe::mpi::comm_create(ranks);
+    LOG(INFO) << "my rank " << caffe::mpi::comm_rank(comms_[i]);
+  }
+  LOG(INFO) << "comm creation time " << timer_comm_create_.MilliSeconds();
+#endif
 
   if (node_size <= count) {
     if (count != node_size) {

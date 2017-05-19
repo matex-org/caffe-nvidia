@@ -49,6 +49,7 @@ class MPIGossipParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callba
   int comm_size_;
   int logp_;
   int hci_;
+  int mci_;
   int send_pair_;
   int recv_pair_;
   shared_ptr<Solver<Dtype> > solver_;
