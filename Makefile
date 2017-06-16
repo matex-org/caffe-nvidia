@@ -325,7 +325,7 @@ ifneq (,$(findstring clang++,$(CXX)))
 	STATIC_LINK_COMMAND := -Wl,-force_load $(STATIC_NAME)
 else ifneq (,$(findstring g++,$(CXX)))
 	STATIC_LINK_COMMAND := -Wl,--whole-archive $(STATIC_NAME) -Wl,--no-whole-archive
-else ifneq (,$(findstring mpicxx,$(CXX)))
+else ifneq (,$(findstring CC,$(CXX)))
 	STATIC_LINK_COMMAND := -Wl,--whole-archive $(STATIC_NAME) -Wl,--no-whole-archive
 else
   # The following line must not be indented with a tab, since we are not inside a target
@@ -344,7 +344,7 @@ endif
 ifeq ($(USE_CUDNN), 1)
 	LIBRARIES += cudnn
 	INCLUDE_DIRS += $(CUDNN_DIR)/include
-	LIBRARY_DIRS += $(CUDNN_DIR)/install/cuda/lib64
+	LIBRARY_DIRS += $(CUDNN_DIR)/lib64
 	COMMON_FLAGS += -DUSE_CUDNN
 endif
 
@@ -401,7 +401,7 @@ else ifeq ($(BLAS), open)
 	LIBRARIES += openblas
 else ifeq ($(BLAS), netlib)
 	# netlib
-	LIBRARIES += cblas
+	#LIBRARIES += cblas
 else ifeq ($(BLAS), essl)
 	COMMON_FLAGS += -DUSE_ESSL
 	LIBRARIES += esslsmp
@@ -480,7 +480,7 @@ endif
 
 all: lib tools examples
 
-lib: $(STATIC_NAME) $(DYNAMIC_NAME)
+lib: $(STATIC_NAME)
 
 everything: $(EVERYTHING_TARGETS)
 
@@ -630,37 +630,35 @@ $(BUILD_DIR)/cuda/%.o: %.cu | $(ALL_BUILD_DIRS)
 	@ cat $@.$(WARNS_EXT)
 
 $(TEST_ALL_BIN): $(TEST_MAIN_SRC) $(TEST_OBJS) $(GTEST_OBJ) \
-		| $(DYNAMIC_NAME) $(TEST_BIN_DIR)
+		| $(STATIC_NAME) $(TEST_BIN_DIR)
 	@ echo CXX/LD -o $@ $<
 	$(Q)$(CXX) $(TEST_MAIN_SRC) $(TEST_OBJS) $(GTEST_OBJ) \
-		-o $@ $(LINKFLAGS) $(LDFLAGS) -l$(LIBRARY_NAME) -Wl,-rpath,$(ORIGIN)/../lib
+		-o $@ $(LINKFLAGS) $(STATIC_LINK_COMMAND) $(LDFLAGS)
 
 $(TEST_CU_BINS): $(TEST_BIN_DIR)/%.testbin: $(TEST_CU_BUILD_DIR)/%.o \
-	$(GTEST_OBJ) | $(DYNAMIC_NAME) $(TEST_BIN_DIR)
+	$(GTEST_OBJ) | $(STATIC_NAME) $(TEST_BIN_DIR)
 	@ echo LD $<
 	$(Q)$(CXX) $(TEST_MAIN_SRC) $< $(GTEST_OBJ) \
-		-o $@ $(LINKFLAGS) $(LDFLAGS) -l$(LIBRARY_NAME) -Wl,-rpath,$(ORIGIN)/../lib
+		-o $@ $(LINKFLAGS) $(STATIC_LINK_COMMAND) $(LDFLAGS)
 
 $(TEST_CXX_BINS): $(TEST_BIN_DIR)/%.testbin: $(TEST_CXX_BUILD_DIR)/%.o \
-	$(GTEST_OBJ) | $(DYNAMIC_NAME) $(TEST_BIN_DIR)
+	$(GTEST_OBJ) | $(STATIC_NAME) $(TEST_BIN_DIR)
 	@ echo LD $<
 	$(Q)$(CXX) $(TEST_MAIN_SRC) $< $(GTEST_OBJ) \
-		-o $@ $(LINKFLAGS) $(LDFLAGS) -l$(LIBRARY_NAME) -Wl,-rpath,$(ORIGIN)/../lib
+		-o $@ $(LINKFLAGS) $(STATIC_LINK_COMMAND) $(LDFLAGS)
 
 # Target for extension-less symlinks to tool binaries with extension '*.bin'.
 $(TOOL_BUILD_DIR)/%: $(TOOL_BUILD_DIR)/%.bin | $(TOOL_BUILD_DIR)
 	@ $(RM) $@
 	@ ln -s $(notdir $<) $@
 
-$(TOOL_BINS): %.bin : %.o | $(DYNAMIC_NAME)
+$(TOOL_BINS): %.bin : %.o | $(STATIC_NAME)
 	@ echo CXX/LD -o $@
-	$(Q)$(CXX) $< -o $@ $(LINKFLAGS) -l$(LIBRARY_NAME) $(LDFLAGS) \
-		-Wl,-rpath,$(ORIGIN)/../lib
+	$(Q)$(CXX) $< -o $@ $(LINKFLAGS) $(STATIC_LINK_COMMAND) $(LDFLAGS)
 
-$(EXAMPLE_BINS): %.bin : %.o | $(DYNAMIC_NAME)
+$(EXAMPLE_BINS): %.bin : %.o | $(STATIC_NAME)
 	@ echo CXX/LD -o $@
-	$(Q)$(CXX) $< -o $@ $(LINKFLAGS) -l$(LIBRARY_NAME) $(LDFLAGS) \
-		-Wl,-rpath,$(ORIGIN)/../../lib
+	$(Q)$(CXX) $< -o $@ $(LINKFLAGS) $(STATIC_LINK_COMMAND) $(LDFLAGS)
 
 proto: $(PROTO_GEN_CC) $(PROTO_GEN_HEADER)
 
