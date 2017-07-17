@@ -17,8 +17,7 @@ namespace caffe {
 
 template<typename Dtype>
 MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver,
-        const SolverParameter& param,
-        bool coherent)
+        const SolverParameter& param)
     : GPUParams<Dtype>(root_solver, param.device_id()),
 #ifdef USE_MPI
       comm_(),
@@ -26,7 +25,6 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver,
       comm_size_(),
       solver_(),
       timer_(),
-      coherent_(coherent),
       cpu_ptr_()
 {
 #ifdef USE_MPI
@@ -66,18 +64,17 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver,
   solver_->set_use_mpi(true);
   solver_->set_scale_on_apply(Dtype(1.0 / comm_size_));
 
-  if (!coherent_) {
-      cpu_ptr_ = new Dtype[size_];
-      // Copy from GPU device to CPU host
-      CUDA_CHECK(cudaMemcpy(cpu_ptr_, data_, size_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
-      // bcast weights and biases
-      caffe::mpi::bcast(cpu_ptr_, size_, 0, comm_);
-      // Copy from CPU host to GPU device
-      CUDA_CHECK(cudaMemcpy(data_, cpu_ptr_, size_ * sizeof(Dtype), cudaMemcpyHostToDevice));
-  }
-  else {
-      caffe::mpi::bcast(data_, size_, 0, comm_);
-  }
+#ifdef NOT_COHERENT
+  cpu_ptr_ = new Dtype[size_];
+  // Copy from GPU device to CPU host
+  CUDA_CHECK(cudaMemcpy(cpu_ptr_, data_, size_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
+  // bcast weights and biases
+  caffe::mpi::bcast(cpu_ptr_, size_, 0, comm_);
+  // Copy from CPU host to GPU device
+  CUDA_CHECK(cudaMemcpy(data_, cpu_ptr_, size_ * sizeof(Dtype), cudaMemcpyHostToDevice));
+#else
+  caffe::mpi::bcast(data_, size_, 0, comm_);
+#endif
 #else
   NO_MPI;
 #endif
@@ -85,9 +82,9 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver,
 
 template<typename Dtype>
 MPISyncGPU<Dtype>::~MPISyncGPU() {
-    if (!coherent_) {
-        delete [] cpu_ptr_;
-    }
+#ifdef NOT_COHERENT
+  delete [] cpu_ptr_;
+#endif
 }
 
 template<typename Dtype>
@@ -97,23 +94,27 @@ void MPISyncGPU<Dtype>::on_start() {
 
 template<typename Dtype>
 void MPISyncGPU<Dtype>::allreduce() {
+  static int count = 0;
+  count++;
   DLOG(INFO) << "allreduce()";
 #ifdef USE_MPI
   // Sum gradients
   timer_.Start();
-  if (!coherent_) {
-      // Copy from GPU device to CPU host
-      CUDA_CHECK(cudaMemcpy(cpu_ptr_, diff_, size_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
-      // Sum gradients
-      caffe::mpi::allreduce(cpu_ptr_, size_, MPI_SUM, comm_);
-      // Copy from CPU host to GPU device
-      CUDA_CHECK(cudaMemcpy(diff_, cpu_ptr_, size_ * sizeof(Dtype), cudaMemcpyHostToDevice));
-  }
-  else {
-      caffe::mpi::allreduce(diff_, size_, MPI_SUM, comm_);
-  }
+#ifdef NOT_COHERENT
+  // Copy from GPU device to CPU host
+  CUDA_CHECK(cudaMemcpy(cpu_ptr_, diff_, size_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
+  // Sum gradients
+  caffe::mpi::allreduce(cpu_ptr_, size_, MPI_SUM, comm_);
+  // Copy from CPU host to GPU device
+  CUDA_CHECK(cudaMemcpy(diff_, cpu_ptr_, size_ * sizeof(Dtype), cudaMemcpyHostToDevice));
+#else
+  caffe::mpi::allreduce(diff_, size_, MPI_SUM, comm_);
+#endif
   double time_comm_ = timer_.MilliSeconds();
-  DLOG(INFO) << "time comm " << time_comm_;
+  if (count == 20) {
+    count = 0;
+    LOG(INFO) << "time comm " << time_comm_;
+  }
 #else
   NO_MPI;
 #endif
