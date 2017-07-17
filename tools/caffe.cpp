@@ -20,6 +20,7 @@ namespace bp = boost::python;
 #include "caffe/parallel/mpi_nccl_async.hpp"
 #include "caffe/parallel/mpi_nccl_sync.hpp"
 #include "caffe/parallel/mpi_sync_gpu.hpp"
+#include "caffe/parallel/mpi_sync_params_gpu.hpp"
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
@@ -61,7 +62,6 @@ DEFINE_int32(comm_threads, 1,
     " The number of threads used by communication code.");
 DEFINE_string(par, "",
         "Optional; parallelization strategy, e.g., MPINCCLSync");
-DEFINE_bool(coherent, false, "can we use GPU allocated pointers in MPI calls");
 DEFINE_bool(cube, true, "for MPIGossipParamsGPU, use hypercube");
 DEFINE_bool(avgdata, true, "for MPIGossipParamsGPU, average the params also");
 DEFINE_bool(alldata, true, "for MPIGossipParamsGPU, average the params also");
@@ -274,12 +274,16 @@ int train() {
   }
   else {
     if (FLAGS_par == "MPISyncGPU") {
-      caffe::MPISyncGPU<float> sync(solver, solver->param(), FLAGS_coherent);
+      caffe::MPISyncGPU<float> sync(solver, solver->param());
       sync.Run();
     }
     if (FLAGS_par == "MPIAsyncParamsGPU") {
       caffe::MPIAsyncParamsGPU<float> sync(solver, solver->param(),
           FLAGS_comm_threads);
+      sync.Run();
+    }
+    else if (FLAGS_par == "MPISyncParamsGPU") {
+      caffe::MPISyncParamsGPU<float> sync(solver, solver->param());
       sync.Run();
     }
     else if (FLAGS_par == "MPIGossipParamsGPU") {
