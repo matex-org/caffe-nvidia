@@ -13,6 +13,33 @@
 namespace caffe {
 
 template<typename Dtype>
+void Solver<Dtype>::DataShuffleBegin() {
+  DLOG(INFO) << "SOLVER SHUFFLE BEGIN";
+  if (NULL == data_layer_) {
+    DLOG(INFO) << "data_layer_ was NULL";
+    data_layer_ = dynamic_cast<BaseDataLayer<Dtype>*>(
+            net_->layers()[0].get());
+    if (NULL == data_layer_) {
+      LOG(FATAL) << "FAILED TO DYNAMIC CAST";
+    }
+  }
+  else {
+    DLOG(INFO) << "data_layer_ was SET";
+  }
+  if (NULL != data_layer_) {
+    data_layer_->DataShuffleBegin();
+  }
+}
+
+template<typename Dtype>
+void Solver<Dtype>::DataShuffleEnd() {
+  DLOG(INFO) << "SOLVER SHUFFLE END";
+  if (NULL != data_layer_) {
+    data_layer_->DataShuffleEnd();
+  }
+}
+
+template<typename Dtype>
 void Solver<Dtype>::SetActionFunction(ActionCallback func) {
   action_request_function_ = func;
 }
@@ -28,7 +55,7 @@ SolverAction::Enum Solver<Dtype>::GetRequestedAction() {
 
 template <typename Dtype>
 Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
-    : net_(), callbacks_(), root_solver_(root_solver),
+    : net_(), callbacks_(), data_layer_(NULL), root_solver_(root_solver),
       requested_early_exit_(false),
       scale_on_apply_(1.0),
       use_mpi_(false),
@@ -38,7 +65,7 @@ Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
 
 template <typename Dtype>
 Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
-    : net_(), callbacks_(), root_solver_(root_solver),
+    : net_(), callbacks_(), data_layer_(NULL), root_solver_(root_solver),
       requested_early_exit_(false),
       scale_on_apply_(1.0),
       use_mpi_(false),

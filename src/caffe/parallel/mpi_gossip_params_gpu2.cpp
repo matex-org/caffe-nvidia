@@ -20,6 +20,8 @@
 
 namespace caffe {
 
+static stats_t stats_comm_;
+
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::next() {
   if (cube_) {
@@ -128,6 +130,8 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
   int node_rank = 0;
   int node_size = 0;
 
+  stats_clear(&stats_comm_);
+
   CUDA_CHECK(cudaGetDeviceCount(&count));
 
   // one MPI_Comm per rank
@@ -212,11 +216,20 @@ void MPIGossipParamsGPU2<Dtype>::on_start() {
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_begin() {
   DLOG(INFO) << "on_begin()";
+  solver_->DataShuffleBegin();
+}
+
+template<typename Dtype>
+void MPIGossipParamsGPU2<Dtype>::after_forward() {
+  DLOG(INFO) << "after_forward()";
+  solver_->DataShuffleEnd();
 }
 
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::allreduce() {
   DLOG(INFO) << "allreduce()";
+  CPUTimer timer;
+  timer.Start();
 #ifdef USE_MPI
 
   // select next exchange partners
@@ -256,25 +269,17 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
 
   if (avgdata_) {
     // average pairwise exchange
-    caffe_gpu_axpby(size_, Dtype(0.5), data_, Dtype(0.5), data_all_);
-    // swap data pointer with reduction pointer
-    Dtype *swap;
-    swap = data_;
-    data_ = data_all_;
-    data_all_ = swap;
-    apply_buffers(params_, data_, size_, replace_gpu);
+    caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
   }
 
   {
     // average pairwise exchange
-    caffe_gpu_axpby(size_, Dtype(0.5), diff_, Dtype(0.5), diff_all_);
-    // swap diff pointer with reduction pointer
-    Dtype *swap;
-    swap = diff_;
-    diff_ = diff_all_;
-    diff_all_ = swap;
-    apply_buffers(params_, diff_, size_, replace_gpu);
+    caffe_gpu_axpby(size_, Dtype(0.5), diff_all_, Dtype(0.5), diff_);
   }
+
+  timer.Stop();
+  stats_sample_value(&stats_comm_, timer.MilliSeconds());
+  LOG_EVERY_N(INFO, 20) << "time comm " << stats_comm_._mean;
 #else
   NO_MPI;
 #endif

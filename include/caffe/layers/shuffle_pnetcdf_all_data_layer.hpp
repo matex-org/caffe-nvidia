@@ -29,6 +29,8 @@ class ShufflePnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int MinTopBlobs() const { return 1; }
   virtual inline int MaxTopBlobs() const { return 2; }
+  virtual void DataShuffleBegin();
+  virtual void DataShuffleEnd();
 
  protected:
   virtual void load_pnetcdf_file_data(const string& filename);
@@ -39,19 +41,22 @@ class ShufflePnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual size_t next_row();
 
   size_t current_row_;
+  size_t shuffle_row_;
   size_t max_row_;
   vector<int> datum_shape_;
   shared_ptr<signed char> data_;
   shared_ptr<int> label_;
-  signed char *one_data_;
-  int *one_label_;
+  signed char *shuffle_data_send_;
+  signed char *shuffle_data_recv_;
+  int *shuffle_label_send_;
+  int *shuffle_label_recv_;
+  vector<MPI_Request> requests_;
   int dest_;
   int source_;
   shared_ptr<boost::mutex> row_mutex_;
   MPI_Comm comm_;
   int comm_rank_;
   int comm_size_;
-  bool ignore_;
 };
 
 }  // namespace caffe

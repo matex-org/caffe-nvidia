@@ -85,9 +85,13 @@ void sendrecv(const double *sendbuf, int sendcount, int dest, int sendtag,
     double *recvbuf, int recvcount, int source, int recvtag,
     MPI_Comm comm=MPI_COMM_NULL);
 
+void isend(MPI_Request &request, const signed char *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+void isend(MPI_Request &request, const int *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 void isend(MPI_Request &request, const float *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 void isend(MPI_Request &request, const double *buf, int count, int dest=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 
+void irecv(MPI_Request &request, signed char *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
+void irecv(MPI_Request &request, int *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 void irecv(MPI_Request &request, float *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 void irecv(MPI_Request &request, double *buf, int count, int source=0, int tag=1234, MPI_Comm comm=MPI_COMM_NULL);
 

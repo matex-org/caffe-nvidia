@@ -56,7 +56,11 @@ class MPIGossipParamsGPU<Dtype>::Reducer : public InternalThread {
           int param_id = sync_->param_solo_.pop("solo param not yet ready");
           time_in_queue_ += timer_queue_.MilliSeconds();
           timer_comm_.Start();
-          if (-1 == param_id) {
+          if (-2 == param_id) {
+            sync_->solver_->DataShuffleBegin();
+            sync_->solver_->DataShuffleEnd();
+          }
+          else if (-1 == param_id) {
             MPI_Comm comm = sync_->comms_[sync_->mci_];
 #if 0
             caffe::mpi::sendrecv(
@@ -409,12 +413,21 @@ void MPIGossipParamsGPU<Dtype>::on_begin() {
     // tell comm thread to send all data
     param_solo_.push(-1);
   }
+  param_solo_.push(-2);
+  //solver_->DataShuffleBegin();
+}
+
+template<typename Dtype>
+void MPIGossipParamsGPU<Dtype>::after_forward() {
+  DLOG(INFO) << "after_forward()";
+  //solver_->DataShuffleEnd();
 }
 
 template<typename Dtype>
 void MPIGossipParamsGPU<Dtype>::allreduce() {
   DLOG(INFO) << "allreduce()";
   if (avgdata_ && alldata_) {
+#if 0
     // average pairwise exchange
     caffe_gpu_axpby(size_, Dtype(0.5), data_, Dtype(0.5), data_all_);
     // swap data pointer with reduction pointer
@@ -423,6 +436,10 @@ void MPIGossipParamsGPU<Dtype>::allreduce() {
     data_ = data_all_;
     data_all_ = swap;
     apply_buffers(params_, data_, size_, replace_gpu);
+#else
+    // average pairwise exchange
+    caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
+#endif
   }
 }
 
@@ -438,6 +455,7 @@ int MPIGossipParamsGPU<Dtype>::on_apply(int param_id) {
   int who_did_the_work = param_all_[param_id]->pop("waiting in apply");
   Blob<Dtype> *blob = params_[param_id];
 
+#if 0
   // average pairwise exhange
   caffe_gpu_axpby(blob->count(), Dtype(0.5), blob->gpu_diff(), Dtype(0.5), param_diffs_[param_id]);
   if (avgdata_ && !alldata_) {
@@ -454,6 +472,13 @@ int MPIGossipParamsGPU<Dtype>::on_apply(int param_id) {
     blob->data()->set_gpu_data(param_datas_[param_id]);
     param_datas_[param_id] = swap;
   }
+#else
+  // average pairwise exhange
+  caffe_gpu_axpby(blob->count(), Dtype(0.5), param_diffs_[param_id], Dtype(0.5), blob->mutable_gpu_diff());
+  if (avgdata_ && !alldata_) {
+    caffe_gpu_axpby(blob->count(), Dtype(0.5), param_datas_[param_id], Dtype(0.5), blob->mutable_gpu_data());
+  }
+#endif
   return param_id;
 }
 

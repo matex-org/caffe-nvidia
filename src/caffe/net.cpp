@@ -552,6 +552,11 @@ Dtype Net<Dtype>::ForwardFromTo(int start, int end) {
     loss += layer_loss;
     if (debug_info_) { ForwardDebugInfo(i); }
   }
+  if (solver_ && solver_->use_mpi()) {
+    for (int k = 0; k < solver_->callbacks().size(); ++k) {
+      solver_->callbacks()[k]->after_forward();
+    }
+  }
   return loss;
 }
 
