@@ -543,6 +543,26 @@ void sendrecv(const double *sendbuf, int sendcount, int dest, int sendtag,
   }
 }
 
+void isend(MPI_Request &request, const signed char* buffer, int count, int dest, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Isend(buffer, count, MPI_CHAR, dest, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Isend failed (signed char)");
+  }
+}
+
+void isend(MPI_Request &request, const int* buffer, int count, int dest, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Isend(buffer, count, MPI_INT, dest, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Isend failed (int)");
+  }
+}
+
 void isend(MPI_Request &request, const float* buffer, int count, int dest, int tag, MPI_Comm comm) {
   if (MPI_COMM_NULL == comm) {
     comm = get_comm_default();
@@ -560,6 +580,26 @@ void isend(MPI_Request &request, const double* buffer, int count, int dest, int 
 
   if (MPI_SUCCESS != MPI_Isend(buffer, count, MPI_DOUBLE, dest, tag, comm, &request)) {
     throw std::runtime_error("MPI_Isend failed (double)");
+  }
+}
+
+void irecv(MPI_Request &request, signed char *buffer, int count, int source, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Irecv(buffer, count, MPI_CHAR, source, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Irecv failed (signed char)");
+  }
+}
+
+void irecv(MPI_Request &request, int *buffer, int count, int source, int tag, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Irecv(buffer, count, MPI_INT, source, tag, comm, &request)) {
+    throw std::runtime_error("MPI_Irecv failed (int)");
   }
 }
 

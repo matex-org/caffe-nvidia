@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "caffe/net.hpp"
+#include "caffe/layers/base_data_layer.hpp"
 #include "caffe/solver_factory.hpp"
 #include "caffe/util/benchmark.hpp"
 
@@ -88,6 +89,7 @@ class Solver {
    protected:
     virtual void on_start() {}
     virtual void on_begin() {}
+    virtual void after_forward() {}
     virtual void allreduce() {}
     virtual void soft_barrier() {}
     virtual int on_apply(int param_id) { return param_id; }
@@ -129,6 +131,8 @@ class Solver {
   virtual void RestoreSolverStateFromBinaryProto(const string& state_file) = 0;
   void DisplayOutputBlobs(const int net_id);
   void UpdateSmoothedLoss(Dtype loss, int start_iter, int average_loss);
+  void DataShuffleBegin();
+  void DataShuffleEnd();
 
   SolverParameter param_;
   int iter_;
@@ -138,6 +142,7 @@ class Solver {
   vector<Callback*> callbacks_;
   vector<Dtype> losses_;
   Dtype smoothed_loss_;
+  BaseDataLayer<Dtype> *data_layer_;
 
   // The root solver that holds root nets (actually containing shared layers)
   // in data parallelism

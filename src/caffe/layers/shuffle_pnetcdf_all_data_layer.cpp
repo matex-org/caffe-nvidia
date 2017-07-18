@@ -21,12 +21,18 @@ template <typename Dtype>
 ShufflePnetCDFAllDataLayer<Dtype>::ShufflePnetCDFAllDataLayer(const LayerParameter& param)
   : BasePrefetchingDataLayer<Dtype>(param),
     current_row_(0),
+    shuffle_row_(0),
     max_row_(0),
     datum_shape_(),
     data_(),
     label_(),
-    one_data_(),
-    one_label_(),
+    shuffle_data_send_(NULL),
+    shuffle_data_recv_(NULL),
+    shuffle_label_send_(NULL),
+    shuffle_label_recv_(NULL),
+    requests_(4, MPI_REQUEST_NULL),
+    dest_(-1),
+    source_(-1),
     row_mutex_(),
     comm_(),
     comm_rank_(),
@@ -351,8 +357,12 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*
   // Load the pnetcdf file into data_ and optionally label_
   load_pnetcdf_file_data(this->layer_param_.data_param().source());
 
-  one_data_ = new signed char[get_datum_size()];
-  one_label_ = new int[1];
+  size_t datum_size = get_datum_size();
+
+  shuffle_data_send_ = new signed char[datum_size*batch_size];
+  shuffle_data_recv_ = new signed char[datum_size*batch_size];
+  shuffle_label_send_ = new int[batch_size];
+  shuffle_label_recv_ = new int[batch_size];
 
   row_mutex_.reset(new boost::mutex());
 
@@ -447,24 +457,11 @@ void ShufflePnetCDFAllDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       if (this->output_labels_) {
         top_label[item_id] = this->label_.get()[row];
       }
-
-#define TAG_DATA  6543
-#define TAG_LABEL 6544
-      /* now that we're done with this datum, exchange with partner */
-      /* must use a temporary copy to avoid aliasing */
-      memcpy(one_data_, this->data_.get() + pnetcdf_offset, datum_size);
-      caffe::mpi::sendrecv(one_data_, datum_size, dest_, TAG_DATA,
-          this->data_.get() + pnetcdf_offset, datum_size, source_, TAG_DATA, comm_);
-      if (this->output_labels_) {
-        memcpy(one_label_, this->label_.get()+row, sizeof(int));
-        caffe::mpi::sendrecv(one_label_, 1, dest_, TAG_LABEL,
-            this->label_.get()+row, 1, source_, TAG_LABEL, comm_);
-      }
     }
     trans_time += timer.MicroSeconds();
   }
 
-  current_row_+=batch_size;
+  current_row_ = (current_row_+batch_size) % max_row_;
 
   timer.Stop();
   batch_timer.Stop();
@@ -481,6 +478,79 @@ size_t ShufflePnetCDFAllDataLayer<Dtype>::next_row() {
   current_row_ = current_row_ % this->max_row_;
   row_mutex_->unlock();
   return row;
+}
+
+template<typename Dtype>
+void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleBegin() {
+  DLOG(INFO) << "PNETCDF DATA SHUFFLE BEGIN";
+  CPUTimer timer;
+  size_t datum_size = get_datum_size();
+  const int batch_size = this->layer_param_.data_param().batch_size();
+  timer.Start();
+  for (int item_id = 0; item_id < batch_size; ++item_id) {
+    // get a datum
+    size_t row = (shuffle_row_+item_id) % this->max_row_;
+    size_t pnetcdf_offset = row * datum_size;
+    size_t local_offset = item_id * datum_size;
+    memcpy(shuffle_data_send_ + local_offset,
+        this->data_.get() + pnetcdf_offset, datum_size);
+    if (this->output_labels_) {
+      memcpy(shuffle_label_send_ + local_offset,
+          this->label_.get() + row, sizeof(int));
+    }
+  }
+
+#define TAG_DATA  6543
+#define TAG_LABEL 6544
+  if (this->output_labels_) {
+    requests_.assign(2, MPI_REQUEST_NULL);
+  }
+  else {
+    requests_.assign(4, MPI_REQUEST_NULL);
+  }
+  caffe::mpi::irecv(requests_[0], shuffle_data_recv_,
+      datum_size*batch_size, source_, TAG_DATA);
+  caffe::mpi::isend(requests_[1], shuffle_data_send_,
+      datum_size*batch_size, dest_, TAG_DATA);
+  if (this->output_labels_) {
+    caffe::mpi::irecv(requests_[2], shuffle_label_recv_,
+        batch_size, source_, TAG_LABEL);
+    caffe::mpi::isend(requests_[3], shuffle_label_send_,
+        batch_size, dest_, TAG_LABEL);
+  }
+  timer.Stop();
+  DLOG(INFO) << "shuffle begin time: " << timer.MilliSeconds() << " ms.";
+}
+
+template<typename Dtype>
+void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleEnd() {
+  DLOG(INFO) << "PNETCDF DATA SHUFFLE END";
+
+  CPUTimer timer;
+  size_t datum_size = get_datum_size();
+  const int batch_size = this->layer_param_.data_param().batch_size();
+
+  timer.Start();
+
+  caffe::mpi::waitall(requests_);
+
+  for (int item_id = 0; item_id < batch_size; ++item_id) {
+    // get a datum
+    size_t row = (shuffle_row_+item_id) % this->max_row_;
+    size_t pnetcdf_offset = row * datum_size;
+    size_t local_offset = item_id * datum_size;
+    memcpy(this->data_.get() + pnetcdf_offset,
+        shuffle_data_recv_ + local_offset, datum_size);
+    if (this->output_labels_) {
+      memcpy(this->label_.get() + row,
+          shuffle_label_recv_ + local_offset, sizeof(int));
+    }
+  }
+
+  shuffle_row_ = (shuffle_row_+batch_size) % this->max_row_;
+
+  timer.Stop();
+  DLOG(INFO) << "shuffle wait time: " << timer.MilliSeconds() << " ms.";
 }
 
 INSTANTIATE_CLASS(ShufflePnetCDFAllDataLayer);

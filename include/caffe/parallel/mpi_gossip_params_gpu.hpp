@@ -34,6 +34,7 @@ class MPIGossipParamsGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callba
 
   void on_start();
   void on_begin();
+  void after_forward();
   void allreduce();
   void allreduce(int param_id);
   int on_apply(int param_id);
