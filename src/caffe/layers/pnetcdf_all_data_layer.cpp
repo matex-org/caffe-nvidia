@@ -114,14 +114,27 @@ void PnetCDFAllDataLayer<Dtype>::load_pnetcdf_file_data(const string& filename) 
   }
 #endif
 
+#if STRIDED
+  fix me
+#else
+  /* if this is the testing phase, every rank loads the entire dataset */
+  if (this->phase() == TEST) {
+    size = 1;
+    start = 0;
+    stop = total;
+  }
+#endif
+
   DLOG(INFO) << "ncid " << ncid;
   DLOG(INFO) << "ndims " << ndims;
   DLOG(INFO) << "nvars " << nvars;
   DLOG(INFO) << "ngatts " << ngatts;
   DLOG(INFO) << "unlimdim " << unlimdim;
-  DLOG(INFO) << "total images " << total;
-  DLOG(INFO) << "start " << start;
-  DLOG(INFO) << "stop " << stop;
+  LOG(INFO) << "total images " << total;
+  LOG(INFO) << "count " << count_;
+  LOG(INFO) << "remain " << remain;
+  LOG(INFO) << "start " << start;
+  LOG(INFO) << "stop " << stop;
 
   for (int varid = 0; varid < nvars; varid++) {
     int vartype;
@@ -166,6 +179,9 @@ void PnetCDFAllDataLayer<Dtype>::load_pnetcdf_file_data(const string& filename) 
     offset[0] = start;
 #endif
     prodcount = prod(count);
+
+    LOG(INFO) << "prodcount " << prodcount;
+    LOG(INFO) << "chunksize " << chunksize;
 
     if (NC_BYTE == vartype) {
       this->data_ = shared_ptr<signed char>(new signed char[prodcount]);
