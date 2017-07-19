@@ -227,6 +227,7 @@ int node_rank(MPI_Comm comm) {
   int size = 0;
   int rank = 0;
   int node = 0;
+  long my_hostid = 0;
   long *hostid = NULL;
 
   if (MPI_COMM_NULL == comm) {
@@ -236,8 +237,8 @@ int node_rank(MPI_Comm comm) {
   size = comm_size(comm);
   rank = comm_rank(comm);
   hostid = new long[size];
-  hostid[rank] = gethostid();
-  if (MPI_SUCCESS != MPI_Allgather(MPI_IN_PLACE, 0, MPI_LONG,
+  my_hostid = gethostid();
+  if (MPI_SUCCESS != MPI_Allgather(&my_hostid, 1, MPI_LONG,
         hostid, 1, MPI_LONG, comm)) {
     delete [] hostid;
     throw std::runtime_error("MPI_Allgather failed");

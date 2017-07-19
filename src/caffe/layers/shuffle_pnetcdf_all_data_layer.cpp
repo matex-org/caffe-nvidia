@@ -495,7 +495,7 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleBegin() {
     memcpy(shuffle_data_send_ + local_offset,
         this->data_.get() + pnetcdf_offset, datum_size);
     if (this->output_labels_) {
-      memcpy(shuffle_label_send_ + local_offset,
+      memcpy(shuffle_label_send_ + item_id,
           this->label_.get() + row, sizeof(int));
     }
   }
@@ -543,7 +543,7 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleEnd() {
         shuffle_data_recv_ + local_offset, datum_size);
     if (this->output_labels_) {
       memcpy(this->label_.get() + row,
-          shuffle_label_recv_ + local_offset, sizeof(int));
+          shuffle_label_recv_ + item_id, sizeof(int));
     }
   }
 
