@@ -18,9 +18,46 @@
 #include "caffe/util/benchmark.hpp"
 #include "caffe/util/gpu_memory.hpp"
 
+#define EXCHANGE_DIFF 0
+#define EXCHANGE_HISTORY_ON_UPDATE 1
+
 namespace caffe {
 
+static CPUTimer timer_;
 static stats_t stats_comm_;
+
+template<typename Dtype>
+static void apply_buffers(const vector<shared_ptr<Blob<Dtype> > >& blobs,
+                          Dtype* buffer, size_t total_size, Op op) {
+  Dtype* ptr = buffer;
+  for (int i = 0; i < blobs.size(); ++i) {
+    int size = blobs[i]->count();
+    switch (op) {
+      case copy: {
+        // Init buffer to current values of blobs
+        caffe_copy(size,
+                   reinterpret_cast<const Dtype*>(blobs[i]->data()->cpu_data()),
+                   ptr);
+        break;
+      }
+      case replace_cpu:
+        blobs[i]->data()->set_cpu_data(ptr);
+        break;
+      case replace_gpu:
+        blobs[i]->data()->set_gpu_data(ptr);
+        break;
+      case replace_cpu_diff:
+        blobs[i]->diff()->set_cpu_data(ptr);
+        break;
+      case replace_gpu_diff:
+        blobs[i]->diff()->set_gpu_data(ptr);
+        break;
+    }
+    ptr += size;
+  }
+  // total_size is at least one byte
+  CHECK_EQ(total_size, (ptr == buffer ? 1 : ptr - buffer));
+}
 
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::next() {
@@ -115,12 +152,15 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
     send_pair_(0),
     recv_pair_(0),
     solver_(),
+    sgdsolver_(),
     params_(root_solver->net()->learnable_params()),
 #ifdef USE_MPI
     comms_(),
 #endif
     diff_all_(),
     data_all_(),
+    history_(),
+    history_all_(),
     cube_(cube),
     avgdata_(avgdata),
     rotate_(rotate)
@@ -178,6 +218,11 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
   solver_->add_callback(this);
   solver_->set_use_mpi(true);
 
+  sgdsolver_ = boost::dynamic_pointer_cast<SGDSolver<Dtype> >(root_solver);
+  if (NULL == sgdsolver_) {
+      LOG(FATAL) << "dynamic cast of SGDSolver failed";
+  }
+
   comm_rank_ = caffe::mpi::comm_rank(comms_[0]);
   comm_rank_orig_ = comm_rank_;
   comm_size_ = caffe::mpi::comm_size(comms_[0]);
@@ -187,15 +232,29 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
   CHECK_EQ((comm_size_ & (comm_size_ - 1)), 0);
   logp_ = int(log2(comm_size_))-1;
 
+#if EXCHANGE_DIFF
   //diff_all_ = new Dtype[size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&diff_all_),
       size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
   caffe_gpu_set(size_, Dtype(0), diff_all_);
+#endif
 
   //data_all_ = new Dtype[size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&data_all_),
       size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
   caffe_gpu_set(size_, Dtype(0), data_all_);
+
+  //history_ = new Dtype[size_];
+  GPUMemory::allocate(reinterpret_cast<void **>(&history_),
+      size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
+  caffe_gpu_set(size_, Dtype(0), history_);
+
+  //history_all_ = new Dtype[size_];
+  GPUMemory::allocate(reinterpret_cast<void **>(&history_all_),
+      size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
+  caffe_gpu_set(size_, Dtype(0), history_all_);
+
+  apply_buffers(sgdsolver_->history(), history_, size_, replace_gpu);
 
 #else
   NO_MPI;
@@ -204,8 +263,12 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
 
 template<typename Dtype>
 MPIGossipParamsGPU2<Dtype>::~MPIGossipParamsGPU2() {
-  delete [] diff_all_;
-  delete [] data_all_;
+  GPUMemory::deallocate(data_all_, buffer_device_, cudaStreamDefault);
+#if EXCHANGE_DIFF
+  GPUMemory::deallocate(diff_all_, buffer_device_, cudaStreamDefault);
+#endif
+  GPUMemory::deallocate(history_, buffer_device_, cudaStreamDefault);
+  GPUMemory::deallocate(history_all_, buffer_device_, cudaStreamDefault);
 }
 
 template<typename Dtype>
@@ -216,6 +279,8 @@ void MPIGossipParamsGPU2<Dtype>::on_start() {
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_begin() {
   DLOG(INFO) << "on_begin()";
+  stats_sample_value(&stats_comm_, timer_.MilliSeconds());
+  LOG_EVERY_N(INFO, 20) << "time comm " << stats_comm_._mean;
   solver_->DataShuffleBegin();
 }
 
@@ -228,8 +293,7 @@ void MPIGossipParamsGPU2<Dtype>::after_forward() {
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::allreduce() {
   DLOG(INFO) << "allreduce()";
-  CPUTimer timer;
-  timer.Start();
+  timer_.Start();
 #ifdef USE_MPI
 
   // select next exchange partners
@@ -251,6 +315,7 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
 #endif
   }
 
+#if EXCHANGE_DIFF
   // exchange diff
   {
       MPI_Comm comm = comms_[mci_];
@@ -266,20 +331,48 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
       caffe::mpi::waitall(requests);
 #endif
   }
+#endif
+
+#if EXCHANGE_HISTORY_ON_UPDATE
+#else
+  // exchange history
+  {
+      MPI_Comm comm = comms_[mci_];
+#if 0
+      caffe::mpi::sendrecv(
+              history_,     size_, send_pair_, 1234,
+              history_all_, size_, recv_pair_, 1234, comm);
+#endif
+#if 1
+      vector<MPI_Request> requests(2);
+      caffe::mpi::irecv(requests[0], history_all_, size_, recv_pair_, 2345, comm);
+      caffe::mpi::isend(requests[1], history_,     size_, send_pair_, 2345, comm);
+      caffe::mpi::waitall(requests);
+#endif
+  }
+#endif
 
   if (avgdata_) {
     // average pairwise exchange
     caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
   }
 
+#if EXCHANGE_DIFF
   {
     // average pairwise exchange
     caffe_gpu_axpby(size_, Dtype(0.5), diff_all_, Dtype(0.5), diff_);
   }
+#endif
 
-  timer.Stop();
-  stats_sample_value(&stats_comm_, timer.MilliSeconds());
-  LOG_EVERY_N(INFO, 20) << "time comm " << stats_comm_._mean;
+#if EXCHANGE_HISTORY_ON_UPDATE
+#else
+  {
+    // average pairwise exchange
+    caffe_gpu_axpby(size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
+  }
+#endif
+
+  timer_.Stop();
 #else
   NO_MPI;
 #endif
@@ -294,6 +387,34 @@ template<typename Dtype>
 int MPIGossipParamsGPU2<Dtype>::on_apply(int param_id) {
   DLOG(INFO) << "on_apply(param_id)";
   return param_id;
+}
+
+template<typename Dtype>
+void MPIGossipParamsGPU2<Dtype>::on_update() {
+  DLOG(INFO) << "on_update()";
+#if EXCHANGE_HISTORY_ON_UPDATE
+  // exchange history
+  {
+      MPI_Comm comm = comms_[mci_];
+#if 0
+      caffe::mpi::sendrecv(
+              history_,     size_, send_pair_, 1234,
+              history_all_, size_, recv_pair_, 1234, comm);
+#endif
+#if 1
+      vector<MPI_Request> requests(2);
+      caffe::mpi::irecv(requests[0], history_all_, size_, recv_pair_, 2345, comm);
+      caffe::mpi::isend(requests[1], history_,     size_, send_pair_, 2345, comm);
+      caffe::mpi::waitall(requests);
+#endif
+  }
+  {
+    // average pairwise exchange
+    caffe_gpu_axpby(size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
+    // must copy history back into gradient diff also
+    caffe_copy(size_, history_, diff_);
+  }
+#endif
 }
 
 template<typename Dtype>

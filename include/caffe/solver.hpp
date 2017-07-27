@@ -93,6 +93,7 @@ class Solver {
     virtual void allreduce() {}
     virtual void soft_barrier() {}
     virtual int on_apply(int param_id) { return param_id; }
+    virtual void on_update() {}
 
     template <typename T>
     friend class SGDSolver;

@@ -117,6 +117,9 @@ void SGDSolver<Dtype>::ApplyUpdate() {
     Regularize(_param_id);
     ComputeUpdateValue(_param_id, rate);
   }
+  for (int i = 0; i < callbacks_.size(); ++i) {
+    callbacks_[i]->on_update();
+  }
   this->net_->Update();
 }
 
