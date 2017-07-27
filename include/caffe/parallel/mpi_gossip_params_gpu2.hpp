@@ -17,7 +17,7 @@ template<typename Dtype>
 class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
  public:
   explicit MPIGossipParamsGPU2(shared_ptr<Solver<Dtype> > root_solver,
-          const SolverParameter& param, bool cube, bool avgdata, bool rotate);
+          const SolverParameter& param, bool cube, bool rotate);
   virtual ~MPIGossipParamsGPU2();
 
   inline const shared_ptr<Solver<Dtype> >& solver() const {
@@ -57,18 +57,17 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
 #ifdef USE_MPI
   vector<MPI_Comm> comms_;
 #endif
-  Dtype *diff_all_;
   Dtype *data_all_;
   Dtype *history_;
   Dtype *history_all_;
   bool cube_;
-  bool avgdata_;
   bool rotate_;
 
   using Params<Dtype>::size_;
   using Params<Dtype>::data_;
   using Params<Dtype>::diff_;
   using GPUParams<Dtype>::buffer_device_;
+  using GPUParams<Dtype>::stream_;
 };
 
 }  // namespace caffe

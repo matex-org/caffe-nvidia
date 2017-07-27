@@ -18,7 +18,6 @@
 #include "caffe/util/benchmark.hpp"
 #include "caffe/util/gpu_memory.hpp"
 
-#define EXCHANGE_DIFF 0
 #define EXCHANGE_HISTORY_ON_UPDATE 1
 
 namespace caffe {
@@ -141,7 +140,6 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
     shared_ptr<Solver<Dtype> > root_solver,
     const SolverParameter& param,
     bool cube,
-    bool avgdata,
     bool rotate)
   : GPUParams<Dtype>(root_solver, param.device_id()),
     comm_rank_(),
@@ -157,12 +155,10 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
 #ifdef USE_MPI
     comms_(),
 #endif
-    diff_all_(),
     data_all_(),
     history_(),
     history_all_(),
     cube_(cube),
-    avgdata_(avgdata),
     rotate_(rotate)
 {
 #ifdef USE_MPI
@@ -232,26 +228,19 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
   CHECK_EQ((comm_size_ & (comm_size_ - 1)), 0);
   logp_ = int(log2(comm_size_))-1;
 
-#if EXCHANGE_DIFF
-  //diff_all_ = new Dtype[size_];
-  GPUMemory::allocate(reinterpret_cast<void **>(&diff_all_),
-      size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
-  caffe_gpu_set(size_, Dtype(0), diff_all_);
-#endif
-
   //data_all_ = new Dtype[size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&data_all_),
-      size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
+      size_ * sizeof(Dtype), param.device_id(), stream_);
   caffe_gpu_set(size_, Dtype(0), data_all_);
 
   //history_ = new Dtype[size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&history_),
-      size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
+      size_ * sizeof(Dtype), param.device_id(), stream_);
   caffe_gpu_set(size_, Dtype(0), history_);
 
   //history_all_ = new Dtype[size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&history_all_),
-      size_ * sizeof(Dtype), param.device_id(), cudaStreamDefault);
+      size_ * sizeof(Dtype), param.device_id(), stream_);
   caffe_gpu_set(size_, Dtype(0), history_all_);
 
   apply_buffers(sgdsolver_->history(), history_, size_, replace_gpu);
@@ -263,12 +252,9 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
 
 template<typename Dtype>
 MPIGossipParamsGPU2<Dtype>::~MPIGossipParamsGPU2() {
-  GPUMemory::deallocate(data_all_, buffer_device_, cudaStreamDefault);
-#if EXCHANGE_DIFF
-  GPUMemory::deallocate(diff_all_, buffer_device_, cudaStreamDefault);
-#endif
-  GPUMemory::deallocate(history_, buffer_device_, cudaStreamDefault);
-  GPUMemory::deallocate(history_all_, buffer_device_, cudaStreamDefault);
+  GPUMemory::deallocate(data_all_, buffer_device_, stream_);
+  GPUMemory::deallocate(history_, buffer_device_, stream_);
+  GPUMemory::deallocate(history_all_, buffer_device_, stream_);
 }
 
 template<typename Dtype>
@@ -300,7 +286,7 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
   next();
 
   // exchange data
-  if (avgdata_) {
+  {
       MPI_Comm comm = comms_[mci_];
 #if 0
       caffe::mpi::sendrecv(
@@ -314,24 +300,6 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
       caffe::mpi::waitall(requests);
 #endif
   }
-
-#if EXCHANGE_DIFF
-  // exchange diff
-  {
-      MPI_Comm comm = comms_[mci_];
-#if 0
-      caffe::mpi::sendrecv(
-              diff_,     size_, send_pair_, 1234,
-              diff_all_, size_, recv_pair_, 1234, comm);
-#endif
-#if 1
-      vector<MPI_Request> requests(2);
-      caffe::mpi::irecv(requests[0], diff_all_, size_, recv_pair_, 2345, comm);
-      caffe::mpi::isend(requests[1], diff_,     size_, send_pair_, 2345, comm);
-      caffe::mpi::waitall(requests);
-#endif
-  }
-#endif
 
 #if EXCHANGE_HISTORY_ON_UPDATE
 #else
@@ -352,17 +320,10 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
   }
 #endif
 
-  if (avgdata_) {
+  {
     // average pairwise exchange
     caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
   }
-
-#if EXCHANGE_DIFF
-  {
-    // average pairwise exchange
-    caffe_gpu_axpby(size_, Dtype(0.5), diff_all_, Dtype(0.5), diff_);
-  }
-#endif
 
 #if EXCHANGE_HISTORY_ON_UPDATE
 #else

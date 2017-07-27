@@ -104,7 +104,6 @@ class GPUParams : public Params<Dtype> {
   using Params<Dtype>::diff_;
 
   int buffer_device_;
- private:
 #ifndef CPU_ONLY
   cudaStream_t stream_;
 #endif
