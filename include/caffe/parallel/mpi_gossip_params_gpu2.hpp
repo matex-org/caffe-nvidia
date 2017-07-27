@@ -9,6 +9,7 @@
 #include "caffe/mpi.hpp"
 #include "caffe/parallel.hpp"
 #include "caffe/solver.hpp"
+#include "caffe/sgd_solvers.hpp"
 
 namespace caffe {
 
@@ -34,6 +35,7 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   void allreduce();
   void allreduce(int param_id);
   int on_apply(int param_id);
+  void on_update();
 
   void next();
   void next_cube();
@@ -50,12 +52,15 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   int send_pair_;
   int recv_pair_;
   shared_ptr<Solver<Dtype> > solver_;
+  shared_ptr<SGDSolver<Dtype> > sgdsolver_;
   const vector<Blob<Dtype>*>& params_;
 #ifdef USE_MPI
   vector<MPI_Comm> comms_;
 #endif
   Dtype *diff_all_;
   Dtype *data_all_;
+  Dtype *history_;
+  Dtype *history_all_;
   bool cube_;
   bool avgdata_;
   bool rotate_;
@@ -63,6 +68,7 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   using Params<Dtype>::size_;
   using Params<Dtype>::data_;
   using Params<Dtype>::diff_;
+  using GPUParams<Dtype>::buffer_device_;
 };
 
 }  // namespace caffe
