@@ -2,6 +2,11 @@
 #define CAFFE_DATA_LAYERS_HPP_
 
 #include <vector>
+#ifdef USE_DEEPMEM
+#include <iostream>
+#include <fstream>
+#include "caffe/util/cache.hpp"
+#endif
 
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
@@ -45,6 +50,7 @@ class BaseDataLayer : public Layer<Dtype> {
   bool output_labels_;
 };
 
+#ifndef USE_DEEPMEM
 template <typename Dtype>
 class Batch {
  public:
@@ -55,6 +61,7 @@ class Batch {
   // stored random numbers for this batch
   Blob<int> random_vec_;
 };
+#endif
 
 template <typename Dtype>
 class BasePrefetchingDataLayer :
@@ -74,16 +81,50 @@ class BasePrefetchingDataLayer :
 
   // Prefetches batches (asynchronously if to GPU memory)
   static const int PREFETCH_COUNT = 3;
+#ifdef USE_DEEPMEM
+  virtual void Pass_Value_To_Layer(Dtype value, unsigned int position) {
+    //LOG(INFO) << "Base Pass";
+    //ignoreAccuracy_=false;
+    historical_accuracy_.push_back(value);
+  }
+  int cache_size_;
+#endif 
 
  protected:
+#ifdef USE_DEEPMEM
+  bool prefetch;
+  void refill_cache(int current_cache);
+#endif
   virtual void InternalThreadEntry();
+#ifdef USE_DEEPMEM
+  virtual void load_batch(Batch<Dtype>* batch, bool in_thread) = 0;
+#else
   virtual void load_batch(Batch<Dtype>* batch) = 0;
+#endif 
 
+#ifdef USE_DEEPMEM
+  void rate_replace_policy(int next_cache);
+  void thread_rate_replace_policy(int next_cache);
+  
+
+  GenRandNumbers randomGen;
+#endif
   Batch<Dtype> prefetch_[PREFETCH_COUNT];
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
 
+#ifdef USE_DEEPMEM  
+  Cache<Dtype> ** caches_;
+  vector<Dtype> historical_accuracy_;
+#endif
+
   Blob<Dtype> transformed_data_;
+
+#ifdef USE_DEEPMEM  
+  friend class Cache<Dtype>;
+  friend class MemoryCache<Dtype>;
+  friend class DiskCache<Dtype>;
+#endif 
 };
 
 }  // namespace caffe

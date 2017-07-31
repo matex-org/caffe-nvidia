@@ -30,7 +30,11 @@ class DataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual inline int MaxTopBlobs() const { return 2; }
 
  protected:
+#ifdef USE_DEEPMEM
+  virtual void load_batch(Batch<Dtype>* batch, bool in_thread);
+#else
   virtual void load_batch(Batch<Dtype>* batch);
+#endif
 
   DataReader reader_;
   shared_ptr<ThreadPool> pool_;

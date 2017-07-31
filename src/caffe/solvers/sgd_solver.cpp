@@ -1,10 +1,19 @@
 #include <string>
 #include <vector>
 
+#ifdef USE_DEEPMEM
+#include <gflags/gflags.h>
+#include "caffe/mpi.hpp"
+#endif
 #include "caffe/sgd_solvers.hpp"
 #include "caffe/util/hdf5.hpp"
 #include "caffe/util/io.hpp"
 #include "caffe/util/upgrade_proto.hpp"
+
+#ifdef USE_DEEPMEM
+DECLARE_string(par);
+DECLARE_bool(scale_on_apply);
+#endif 
 
 namespace caffe {
 

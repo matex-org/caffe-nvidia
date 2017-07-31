@@ -7,7 +7,11 @@
 
 namespace caffe { namespace db {
 
+#ifdef USE_DEEPMEM
+void LMDB::Open(const string& source, Mode mode, const LayerParameter * param) {
+#else
 void LMDB::Open(const string& source, Mode mode) {
+#endif
   MDB_CHECK(mdb_env_create(&mdb_env_));
   if (mode == NEW) {
     CHECK_EQ(mkdir(source.c_str(), 0744), 0) << "mkdir " << source << "failed";

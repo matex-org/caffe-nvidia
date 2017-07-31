@@ -6,6 +6,10 @@
 
 #include "caffe/net.hpp"
 #include "caffe/solver_factory.hpp"
+#ifdef USE_DEEPMEM
+#include "caffe/util/benchmark.hpp"
+#endif
+
 #include "caffe/util/benchmark.hpp"
 
 namespace caffe {

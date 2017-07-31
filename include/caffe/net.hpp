@@ -216,6 +216,10 @@ class Net {
   const shared_ptr<Blob<Dtype> > blob_by_name(const string& blob_name) const;
   bool has_layer(const string& layer_name) const;
   const shared_ptr<Layer<Dtype> > layer_by_name(const string& layer_name) const;
+#ifdef USE_DEEPMEM
+  bool has_layer_type(const string& layer_name) const;
+  const shared_ptr<Layer<Dtype> > layer_by_type(const string& layer_type) const;
+#endif 
 
   void set_debug_info(const bool value) { debug_info_ = value; }
 
@@ -264,6 +268,10 @@ class Net {
   vector<shared_ptr<Layer<Dtype> > > layers_;
   vector<string> layer_names_;
   map<string, int> layer_names_index_;
+#ifdef USE_DEEPMEM
+  vector<string> layer_types_;
+  multimap<string, int> layer_types_index_;
+#endif 
   vector<bool> layer_need_backward_;
   /// @brief the blobs storing intermediate results between the layer.
   vector<shared_ptr<Blob<Dtype> > > blobs_;

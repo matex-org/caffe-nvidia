@@ -37,7 +37,11 @@ class DB {
  public:
   DB() { }
   virtual ~DB() { }
+#ifdef USE_DEEPMEM
+  virtual void Open(const string& source, Mode mode, const LayerParameter * param = NULL) = 0;
+#else
   virtual void Open(const string& source, Mode mode) = 0;
+#endif
   virtual void Close() = 0;
   virtual Cursor* NewCursor() = 0;
   virtual Transaction* NewTransaction() = 0;

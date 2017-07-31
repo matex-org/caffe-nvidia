@@ -14,8 +14,14 @@ class Timer {
   virtual void Start();
   virtual void Stop();
   virtual float MilliSeconds();
+#ifdef USE_DEEPMEM
+  virtual float MilliSecondsCont();
+#endif
   virtual float MicroSeconds();
   virtual float Seconds();
+#ifdef USE_DEEPMEM
+  virtual float SecondsCont();
+#endif
 
   inline bool initted() { return initted_; }
   inline bool running() { return running_; }

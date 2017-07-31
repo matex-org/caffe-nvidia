@@ -1,0 +1,33 @@
+I added caching: please contact landwehr.joshua@gmail.com for any help.
+
+I provided a sample.prototext from googlenet that provides info on how to use caching sftp
+Please read that.
+
+I created a new file format called remote_index with an index file that tells how to offset
+into a image database. In addition, I added support for sftp that uses this file format.
+Because the format is simple when can easily seek around a file and read it remotely.
+
+By default remote index sftp is enabled and requires libssh2 to work. In addition to that,
+I added KNL support for HBM to the cache. KNL:=1 must be set in the makefile.config to enable HBM.
+It requires the memkind library to work.
+
+Caching sources files are below:
+
+Classes for cache:
+include/caffe/util/cache.hpp
+src/caffe/util/cache.cpp
+
+Uses classes in this layer below to load batches from and refill:
+src/caffe/layers/base_data_layer.cpp
+include/caffe/layers/base_data_layer.hpp
+
+File formats databases I created (sftp supports remote index over sftp):
+src/caffe/util/db_remote_index.cpp
+src/caffe/util/db_remote_index_sftp.cpp
+include/caffe/util/db_remote_index.hpp
+include/caffe/util/db_remote_index_sftp.hpp
+
+These above just inheret DB and implement those interfaces like lmdb/leveldb 
+To convert data to remote_index just set the --backend=remote_index in create_imagenet
+
+I also modified caffe to pass layer params to the DB open function so as to send server/username/pass to sftp db

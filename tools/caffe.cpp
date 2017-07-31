@@ -30,6 +30,13 @@ using caffe::Timer;
 using caffe::vector;
 using std::ostringstream;
 
+#ifdef USE_DEEPMEM
+#ifdef USE_MPI
+DECLARE_string(par);
+DECLARE_int32(buffer_depth);
+DECLARE_bool(scale_on_apply);
+#endif
+#endif 
 DEFINE_string(gpu, "",
     "Optional; run in GPU mode on given device IDs separated by ','."
     "Use '-gpu all' to run on all available GPUs. The effective training "

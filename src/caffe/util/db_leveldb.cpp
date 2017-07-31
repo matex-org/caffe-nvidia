@@ -5,7 +5,11 @@
 
 namespace caffe { namespace db {
 
+#ifdef USE_DEEPMEM
+void LevelDB::Open(const string& source, Mode mode, const LayerParameter * param) {
+#else
 void LevelDB::Open(const string& source, Mode mode) {
+#endif
   leveldb::Options options;
   options.block_size = 65536;
   options.write_buffer_size = 268435456;

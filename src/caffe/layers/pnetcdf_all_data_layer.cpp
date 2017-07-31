@@ -361,12 +361,25 @@ void PnetCDFAllDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bott
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
       this->prefetch_[i].label_.Reshape(label_shape);
     }
+#ifdef USE_DEEPMEM
+    for (int i = 0; i < this->cache_size_; ++i)
+      this->caches_[i]->reshape(&top_shape, &label_shape);
+  }
+  else
+  {
+    for (int i = 0; i < this->cache_size_; ++i)
+      this->caches_[i]->reshape(&top_shape, NULL);
+#endif
   }
 }
 
 // This function is called on prefetch thread
 template<typename Dtype>
+#ifdef USE_DEEPMEM
+void PnetCDFAllDataLayer<Dtype>::load_batch(Batch<Dtype>* batch, bool in_thread) {
+#else
 void PnetCDFAllDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
+#endif
   CPUTimer batch_timer;
   batch_timer.Start();
   double read_time = 0;

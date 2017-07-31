@@ -202,6 +202,9 @@ void Solver<Dtype>::Step(int iters) {
   losses_.clear();
   smoothed_loss_ = 0;
   iteration_timer_.Start();
+#ifdef USE_DEEPMEM
+  float lapse_total = 0;
+#endif
 
   for (int i = 0; i < callbacks_.size(); ++i) {
     // we need to sync all threads before starting, otherwise some cuda init,
@@ -243,6 +246,10 @@ void Solver<Dtype>::Step(int iters) {
     if (display) {
       float lapse = iteration_timer_.Seconds();
       float per_s = (iter_ - iterations_last_) / (lapse ? lapse : 1);
+#ifdef USE_DEEPMEM
+lapse_total += lapse;
+      float total_per_s = iter_ / lapse_total;
+#endif
       LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
           << " (" << per_s << " iter/s, " << lapse << "s/"
           << param_.display() <<" iter), loss = " << smoothed_loss_;
@@ -432,6 +439,15 @@ void Solver<Dtype>::Test(const int test_net_id) {
     }
     LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
               << mean_score << loss_msg_stream.str();
+#ifdef USE_DEEPMEM
+    if( "accuracy" == output_name )
+    {
+      if(net_->has_layer_type("Data"))
+        net_->layer_by_type("Data")->Pass_Value_To_Layer(mean_score,0);
+      if(net_->has_layer_type("PnetCDFData"))
+        net_->layer_by_type("PnetCDFData")->Pass_Value_To_Layer(mean_score,0);
+    }
+#endif
   }
 }
 
