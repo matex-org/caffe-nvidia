@@ -475,8 +475,12 @@ void DiskCache<Dtype>::fill(bool in_thread)
   if(!open)
   {
     LOG(INFO) << "Cache Location" << Cache<Dtype>::disk_location;
-    cache.open (Cache<Dtype>::disk_location, ios::trunc| ios::in | ios::out | ios::binary );
-    cache_read.open (Cache<Dtype>::disk_location, ios::in | ios::binary );
+    char * disk_loc_char = new char [Cache<Dtype>::disk_location.length()+1];
+    strcpy(disk_loc_char, Cache<Dtype>::disk_location.c_str());
+    // cache.open (Cache<Dtype>::disk_location, ios::trunc| ios::in | ios::out | ios::binary );
+    cache.open (disk_loc_char, ios::trunc| ios::in | ios::out | ios::binary );
+    // cache_read.open (Cache<Dtype>::disk_location, ios::in | ios::binary );
+    cache_read.open (disk_loc_char, ios::in | ios::binary );
     open = true;
     if(!cache.is_open() || !cache_read.is_open())
     {

@@ -10,7 +10,6 @@ Copyright (c) 2014, 2015, the respective contributors
 All rights reserved.
 For the list of contributors go to https://github.com/BVLC/caffe/blob/master/CONTRIBUTORS.md
 
-
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
@@ -53,8 +52,8 @@ namespace caffe { namespace db {
 
 class RemoteIndexSFTPEnv
 {
-  public: 
-  
+  public:
+
   RemoteIndexSFTPEnv():
     total_timer(),
     timer()
@@ -245,14 +244,14 @@ class RemoteIndexSFTPEnv
         ssh_get_error(db_ssh_session));
         exit(-1);
     }
-  
+
     if (verify_knownhost(db_ssh_session) < 0)
     {
         ssh_disconnect(db_ssh_session);
         ssh_free(db_ssh_session);
         exit(-1);
     }
-    
+
     rc = authenticate_pubkey(db_ssh_session);
     if (rc != SSH_AUTH_SUCCESS)
     {
@@ -271,7 +270,7 @@ class RemoteIndexSFTPEnv
         ssh_free(db_ssh_session);
         exit(-1);
     }
-    
+
     sftp_create_session(db_ssh_session, db_sftp_session);
   }
 
@@ -309,7 +308,7 @@ class RemoteIndexSFTPEnv
           return 0;
 
         pos = 0;
-        
+
         offset=0;
         while(1)
         {
@@ -324,7 +323,7 @@ class RemoteIndexSFTPEnv
               offset = res;
               break;
             }
-            
+
             key_index.push_back(key);
           }
           if(read_offset-pos == 0)
@@ -378,9 +377,9 @@ class RemoteIndexSFTPEnv
     {
       current_index = 0;
     }
-    
+
   }*/
-  
+
   bool valid(){ return valid_; };
 
   void reset() { valid_=true; sftp_seek(index_file_, 0); sftp_seek(block_file_, 0); current_index =0;  }
@@ -388,7 +387,7 @@ class RemoteIndexSFTPEnv
   private:
   ssh_session db_ssh_session;
   sftp_session db_sftp_session;
-  
+
   // Master List of image sizes
   vector<uint64_t> image_index;
   vector<string> key_index;

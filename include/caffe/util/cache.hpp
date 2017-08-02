@@ -12,6 +12,9 @@
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/blocking_queue.hpp"
+#ifdef USE_DEEPMEM
+#include <cstring>
+#endif
 
 namespace caffe {
 
@@ -26,11 +29,16 @@ class Batch {
   //shared_ptr<sync> sync_var;
   //void lock();
   //void unlock();
+#ifndef CPU_ONLY
+  cudaEvent_t copied_;
+#endif
+  // stored random numbers for this batch
+  Blob<int> random_vec_;
 };
 
 //Pop Batch strucutre is like a batch but includes a pointer to dirty structure
 template <typename Dtype>
-struct PopBatch 
+struct PopBatch
 {
   Batch<Dtype>* batch;
   volatile bool * dirty;
@@ -40,14 +48,14 @@ template <typename Dtype>
 class Cache
 {
   public:
-  volatile bool * dirty; //Tells if cache position can be written over  
+  volatile bool * dirty; //Tells if cache position can be written over
   class Cache * next; //The cache above me
   class Cache * prev; //The cache below me
   string disk_location; //File location for disk caching
   bool prefetch; //Is this cache replaced in the prefetcher thread
   volatile bool full_replace; //Has the whole cache been replaced
   int size; //Number of batches this cache stores
-  int refill_start; 
+  int refill_start;
   mutable boost::atomic<int> used; //Tells your dirty slot or how many slots are dirty
   int eviction_rate; //Reuse count
   int current_shuffle_count; //Increments when full_replace is true
@@ -59,7 +67,7 @@ class Cache
   void (Cache<Dtype>::*refill_policy)(int); //Function pointer to thread replacement policy
   void (Cache<Dtype>::*local_refill_policy)(int); //Function pointer to forward cpu replacement policy
   BasePrefetchingDataLayer<Dtype> * data_layer;
-  
+
   //Inits Cache: ptr is the batch buffer memory, pt2 is the dirty bit memory, thread_safe tells if cache is on prefetch
   virtual void create( void * ptr, bool * ptr2, bool thread_safe ) { };
   virtual bool empty() { return false; };
@@ -74,20 +82,19 @@ class Cache
   virtual void mutate_data(bool labels) {};
 };
 
-
 template <typename Dtype>
 class MemoryCache : public Cache <Dtype>
 {
   public:
 
-  //Batches memory 
+  //Batches memory
   Batch<Dtype> * cache;
   //Queue for poping from
   BlockingQueue<Batch<Dtype>*> cache_full;
-  
+
   //Swaps image in batch1 at batchPos1 with image in batch2 at batchPos2
   void shuffle_cache(Batch<Dtype>* batch1, int batchPos1, Batch<Dtype>*  batch2, int batchPos2);
-  
+
   virtual void create( void * ptr, bool * ptr2,bool thread_safe );
   virtual bool empty();
   virtual PopBatch<Dtype> pop();
@@ -102,7 +109,7 @@ template <typename Dtype>
 class DiskCache : public Cache <Dtype>
 {
   public:
-  
+
   //File stream
   bool open;
   fstream cache;

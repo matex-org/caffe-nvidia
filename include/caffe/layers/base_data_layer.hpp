@@ -88,7 +88,7 @@ class BasePrefetchingDataLayer :
     historical_accuracy_.push_back(value);
   }
   int cache_size_;
-#endif 
+#endif
 
  protected:
 #ifdef USE_DEEPMEM
@@ -100,12 +100,11 @@ class BasePrefetchingDataLayer :
   virtual void load_batch(Batch<Dtype>* batch, bool in_thread) = 0;
 #else
   virtual void load_batch(Batch<Dtype>* batch) = 0;
-#endif 
+#endif
 
 #ifdef USE_DEEPMEM
   void rate_replace_policy(int next_cache);
   void thread_rate_replace_policy(int next_cache);
-  
 
   GenRandNumbers randomGen;
 #endif
@@ -113,18 +112,18 @@ class BasePrefetchingDataLayer :
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
 
-#ifdef USE_DEEPMEM  
+#ifdef USE_DEEPMEM
   Cache<Dtype> ** caches_;
   vector<Dtype> historical_accuracy_;
 #endif
 
   Blob<Dtype> transformed_data_;
 
-#ifdef USE_DEEPMEM  
+#ifdef USE_DEEPMEM
   friend class Cache<Dtype>;
   friend class MemoryCache<Dtype>;
   friend class DiskCache<Dtype>;
-#endif 
+#endif
 };
 
 }  // namespace caffe

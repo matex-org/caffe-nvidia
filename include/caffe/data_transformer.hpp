@@ -8,8 +8,70 @@
 #include "caffe/common.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/blocking_queue.hpp"
+#ifdef USE_DEEPMEM
+// from Intel's version
+#include "caffe/util/math_functions.hpp"
+#include "caffe/util/rng.hpp"
+#endif
 
 namespace caffe {
+
+// #ifdef 0
+#ifdef USE_DEEPMEM
+// Intel's counter part here:
+
+class RandNumbers {
+ public:
+   /**
+   * @brief Generates a random integer from Uniform({0, 1, ..., n-1}).
+   *
+   * @param n
+   *    The upperbound (exclusive) value of the random number.
+   * @return
+   *    A uniformly random integer value from ({0, 1, ..., n-1}).
+   */
+  int operator()(int n) {
+    CHECK_GT(n, 0);
+    return GetNextNumber() % n;
+  }
+
+  virtual uint32_t GetNextNumber() = 0;
+};
+
+class GenRandNumbers: public RandNumbers {
+ public:
+  void Init() {
+    const unsigned int rng_seed = caffe_rng_rand();
+    rng_.reset(new Caffe::RNG(rng_seed));
+  }
+  void Reset() { rng_.reset(); }
+  virtual uint32_t GetNextNumber() {
+    CHECK(rng_);
+    caffe::rng_t* rng = static_cast<caffe::rng_t*>(rng_->generator());
+    return (*rng)();
+  }
+ private:
+  shared_ptr<Caffe::RNG> rng_;
+};
+
+class PreclcRandomNumbers: public RandNumbers {
+ public:
+  void FillRandomNumbers(int num_count, RandNumbers& rand_gen) {
+    for (int i = 0; i < num_count; i++)
+      random_numbers.push(rand_gen.GetNextNumber());
+  }
+
+  virtual uint32_t GetNextNumber() {
+    CHECK(!random_numbers.empty());
+    uint32_t num = random_numbers.front();
+    random_numbers.pop();
+    return num;
+  }
+ private:
+  std::queue<uint32_t> random_numbers;
+};
+#endif
+// #endif
 
 /**
  * @brief Applies common transformations to the input data, such as

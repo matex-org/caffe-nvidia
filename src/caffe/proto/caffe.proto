@@ -44,7 +44,7 @@ message FillerParameter {
   // The filler type. Can be one of the following:
   // constant, gaussian, positive_unitball, uniform, xavier,
   // msra, bilinear, or their static versions:
-  // gaussianstatic, positive_unitballstatic, uniformstatic, 
+  // gaussianstatic, positive_unitballstatic, uniformstatic,
   // xavierstatic, msrastatic, bilinearstatic
   // In the static version the random number generator is only
   // called once, and subsequent calls to fill blob, will write
@@ -727,10 +727,38 @@ message CropParameter {
   repeated uint32 offset = 2;
 }
 
+// USE_DEEPMEM
+message CacheParameter {
+  enum CacheStoragePolicy {
+    HEAP = 0;
+    HBM = 1;
+    DISK = 2;
+    REMOTE = 3;
+  }
+  enum CacheReplacementPolicy {
+    RATE = 0;
+    LAST_ERROR = 1;
+    LAST_LOSS = 2;
+  }
+
+  optional uint32 size = 1 [default = 0];
+  optional bool thread_safe = 2 [default = false];
+  optional CacheReplacementPolicy replace = 3 [default = RATE];
+  optional CacheStoragePolicy type = 4 [default = HEAP] ;
+  optional uint32 eviction_rate = 5 [default = 0];
+  optional string disk_location = 6 [default = "./"];
+
+}
+//end USE_DEEPMEM
+
 message DataParameter {
   enum DB {
     LEVELDB = 0;
     LMDB = 1;
+// USE_DEEPMEM
+    REMOTE_INDEX = 2;
+    REMOTE_INDEX_SFTP = 3;
+//end USE_DEEPMEM
   }
   // Specify the data source.
   optional string source = 1;
@@ -762,7 +790,34 @@ message DataParameter {
   // Number of processing threads.  0 means use defaults. 1 thread for CPU or
   // cpu logical cores / number of GPUs
   optional uint32 threads  = 11 [default = 0];
+
+// USE_DEEPMEM
+  optional bool shuffle = 12 [default = false];
+  optional string server = 13 [default = "127.0.0.1"];
+  optional string username = 14;
+  optional string password = 15;
+
+  repeated CacheParameter cache = 16;
+//end USE_DEEPMEM
 }
+
+// USE_DEEPMEM
+message RemoteDataParameter {
+  optional string address = 1;
+
+  //cache_size equal 0 means it will cache everything,
+  //and will forward data from cache only
+  optional uint32 cache_size = 2;
+
+  enum CachePolicy {
+    PULL_CONTINOUSLY = 0; //will continously pull from data server
+    USE_CACHE_WHEN_FULL = 1; //when cache is full, than it will be repeated
+  }
+  optional CachePolicy policy = 3 [default = PULL_CONTINOUSLY];
+
+  repeated BlobShape shape = 5;
+}
+// end USE_DEEPMEM
 
 message DropoutParameter {
   optional float dropout_ratio = 1 [default = 0.5]; // dropout ratio

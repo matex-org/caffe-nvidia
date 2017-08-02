@@ -151,11 +151,11 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   if (this->output_labels_) {
     top_label = batch->label_.mutable_cpu_data();
   }
-#ifdef USE_DEEPMEM
-  #pragma omp parallel if (!in_thread && batch_size > 1)
-#else
-  #pragma omp parallel if (batch_size > 1)
-#endif
+// #ifdef USE_DEEPMEM
+//   #pragma omp parallel if (!in_thread && batch_size > 1)
+// #else
+//   #pragma omp parallel if (batch_size > 1)
+// #endif
   for (int item_id = 0; item_id < batch_size; ++item_id) {
       timer.Start();
       // Get a datum

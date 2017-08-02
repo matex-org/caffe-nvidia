@@ -10,7 +10,6 @@ Copyright (c) 2014, 2015, the respective contributors
 All rights reserved.
 For the list of contributors go to https://github.com/BVLC/caffe/blob/master/CONTRIBUTORS.md
 
-
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
 
@@ -40,6 +39,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define CAFFE_UTIL_DB_REMOTE_INDEX_HPP
 
 #include <string>
+#include <cstring>
 #include <utility>
 #include <vector>
 
@@ -49,8 +49,8 @@ namespace caffe { namespace db {
 
 class RemoteIndexEnv
 {
-  public: 
-  
+  public:
+
   RemoteIndexEnv()
   {
       buffer_size = 1024;
@@ -93,8 +93,15 @@ class RemoteIndexEnv
     string index = source + "/index";
     string block = source + "/db";
     string key;
-    index_stream_.open(index, ios_mode);
-    block_stream_.open(block, ios_mode);
+    char* index_char = new char [index.length()+1];
+    char* block_char = new char [block.length()+1];
+    std::strcpy (index_char, index.c_str());
+    std::strcpy (block_char, block.c_str());
+    // ifdef C++11
+    // index_stream_.open(index, ios_mode);
+    // block_stream_.open(block, ios_mode);
+    index_stream_.open(index_char, ios_mode);
+    block_stream_.open(block_char, ios_mode);
     uint64_t value;
     valid_=true;
     if(ios_mode & ios::in)
@@ -114,7 +121,7 @@ class RemoteIndexEnv
         index_stream_.get();
       }
       //f
-      
+
     }
     return 0;
   }
@@ -134,9 +141,9 @@ class RemoteIndexEnv
     {
       current_index = 0;
     }
-    
+
   }*/
-  
+
   bool valid(){ return valid_; };
 
   void reset() { valid_=true; index_stream_.seekg(0,index_stream_.beg); block_stream_.seekg(0,block_stream_.beg); current_index =0;  }
