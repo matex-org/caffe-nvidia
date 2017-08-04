@@ -47,6 +47,8 @@ class Solver {
   void Init(const SolverParameter& param);
   void InitTrainNet();
   void InitTestNets();
+  bool allreduce = true;
+  void set_allreduce(bool value) {allreduce = value;}
 
   // Client of the Solver optionally may call this in order to set the function
   // that the solver uses to see what action it should take (e.g. snapshot or
@@ -69,6 +71,7 @@ class Solver {
   void Snapshot();
   virtual ~Solver() {}
   inline const SolverParameter& param() const { return param_; }
+  void set_iter(int i) {iter_ = i;}
   inline shared_ptr<Net<Dtype> > net() { return net_; }
   inline const vector<shared_ptr<Net<Dtype> > >& test_nets() {
     return test_nets_;
@@ -82,6 +85,7 @@ class Solver {
    public:
     virtual void allreduce(int param_id) = 0;
     virtual void syncCommStream() = 0;
+
 
    protected:
     virtual void on_start() = 0;
@@ -104,13 +108,13 @@ class Solver {
 
  protected:
   // Make and apply the update value for the current iteration.
-  virtual void ApplyUpdate() = 0;
   string SnapshotFilename(const string extension);
   string SnapshotToBinaryProto();
   string SnapshotToHDF5();
   // The test routine
   void TestAll();
   void Test(const int test_net_id = 0);
+  virtual void ApplyUpdate() = 0;
   virtual void SnapshotSolverState(const string& model_filename) = 0;
   virtual void RestoreSolverStateFromHDF5(const string& state_file) = 0;
   virtual void RestoreSolverStateFromBinaryProto(const string& state_file) = 0;

@@ -19,6 +19,8 @@
 #include "caffe/layers/python_layer.hpp"
 #include "caffe/sgd_solvers.hpp"
 #include "caffe/util/gpu_memory.hpp"
+#include "caffe/parallel/mpi_sync_gpu.hpp"
+#include "caffe/parallel.hpp"
 
 // Temporary solution for numpy < 1.7 versions: old macro, no promises.
 // You're strongly advised to upgrade to >= 1.7.
@@ -273,6 +275,7 @@ BOOST_PYTHON_MODULE(_caffe) {
     .def("__init__", bp::make_constructor(&Net_Init_Load))
     .def("_forward", &Net<Dtype>::ForwardFromTo)
     .def("_backward", &Net<Dtype>::BackwardFromTo)
+    .def("update", &Net<Dtype>::Update)
     .def("reshape", &Net<Dtype>::Reshape)
     // The cast is to select a particular overload.
     .def("copy_from", static_cast<void (Net<Dtype>::*)(const string)>(
@@ -331,24 +334,42 @@ BOOST_PYTHON_MODULE(_caffe) {
     .add_property("type", bp::make_function(&Layer<Dtype>::type));
   BP_REGISTER_SHARED_PTR_TO_PYTHON(Layer<Dtype>);
 
+#ifdef USE_MPI
+  bp::class_<MPISyncGPU<Dtype>, shared_ptr<MPISyncGPU<Dtype> >, boost::noncopyable>(
+    "MPISyncGPU", bp::init<shared_ptr<Solver<Dtype> > >())
+    .def("run", &MPISyncGPU<Dtype>::Run)
+    .def("step", &MPISyncGPU<Dtype>::Step);
+  BP_REGISTER_SHARED_PTR_TO_PYTHON(MPISyncGPU<Dtype>);
+#endif
+
   bp::class_<LayerParameter>("LayerParameter", bp::no_init);
 
   bp::class_<Solver<Dtype>, shared_ptr<Solver<Dtype> >, boost::noncopyable>(
     "Solver", bp::no_init)
     .add_property("net", &Solver<Dtype>::net)
+    .add_property("allreduce", &Solver<Dtype>::allreduce)
     .add_property("test_nets", bp::make_function(&Solver<Dtype>::test_nets,
           bp::return_internal_reference<>()))
+    //.add_property("update", &Solver<Dtype>::update)
+    //.add_property("allreduce", &Solver<Dtype>::allreduce)
     .add_property("iter", &Solver<Dtype>::iter)
     .def("solve", static_cast<void (Solver<Dtype>::*)(const char*)>(
           &Solver<Dtype>::Solve), SolveOverloads())
     .def("step", &Solver<Dtype>::Step)
+    .def("set_allreduce", &Solver<Dtype>::set_allreduce)
     .def("restore", &Solver<Dtype>::Restore)
+    //.def("yy_sync", &Solver<Dtype>::yy_sync)
+    .def("set_iter", &Solver<Dtype>::set_iter)
+    //.def("set_allreduce", &Solver<Dtype>::set_update)
+    //.def("set_update", &Solver<Dtype>::set_allreduce)
     .def("snapshot", &Solver<Dtype>::Snapshot);
   BP_REGISTER_SHARED_PTR_TO_PYTHON(Solver<Dtype>);
 
   bp::class_<SGDSolver<Dtype>, bp::bases<Solver<Dtype> >,
     shared_ptr<SGDSolver<Dtype> >, boost::noncopyable>(
-        "SGDSolver", bp::init<string>());
+        "SGDSolver", bp::init<string>())
+    .add_property("history", bp::make_function(&SGDSolver<Dtype>::history,
+        bp::return_internal_reference<>()));
   bp::class_<NesterovSolver<Dtype>, bp::bases<Solver<Dtype> >,
     shared_ptr<NesterovSolver<Dtype> >, boost::noncopyable>(
         "NesterovSolver", bp::init<string>());

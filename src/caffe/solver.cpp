@@ -271,8 +271,10 @@ void Solver<Dtype>::Step(int iters) {
 #ifndef CPU_ONLY
     CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
 #endif
+    if (allreduce) {
     for (int i = 0; i < callbacks_.size(); ++i) {
       callbacks_[i]->allreduce();
+    };
     }
     // Make sure all gradient exchanges have finished in per-level scheme
     for (int i = 0; i < callbacks_.size(); ++i) {
