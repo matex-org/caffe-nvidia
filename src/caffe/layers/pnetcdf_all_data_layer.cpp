@@ -361,6 +361,15 @@ void PnetCDFAllDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bott
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
       this->prefetch_[i].label_.Reshape(label_shape);
     }
+#ifdef USE_DEEPMEM
+    for (int i = 0; i < this->cache_size_; ++i)
+      this->caches_[i]->reshape(&top_shape, &label_shape);
+  }
+  else
+  {
+    for (int i = 0; i < this->cache_size_; ++i)
+      this->caches_[i]->reshape(&top_shape, NULL);
+#endif
   }
 }
 
@@ -434,10 +443,10 @@ void PnetCDFAllDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 template<typename Dtype>
 size_t PnetCDFAllDataLayer<Dtype>::next_row() {
   size_t row;
-  row_mutex_->lock();
+  // row_mutex_->lock();
   row = current_row_++;
   current_row_ = current_row_ % this->max_row_;
-  row_mutex_->unlock();
+  // row_mutex_->unlock();
   return row;
 }
 
@@ -445,4 +454,3 @@ INSTANTIATE_CLASS(PnetCDFAllDataLayer);
 REGISTER_LAYER_CLASS(PnetCDFAllData);
 
 }  // namespace caffe
-

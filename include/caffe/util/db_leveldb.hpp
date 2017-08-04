@@ -49,7 +49,11 @@ class LevelDB : public DB {
  public:
   LevelDB() : db_(NULL) { }
   virtual ~LevelDB() { Close(); }
+#ifdef USE_DEEPMEM
+  virtual void Open(const string& source, Mode mode, const LayerParameter * param);
+#else
   virtual void Open(const string& source, Mode mode);
+#endif
   virtual void Close() {
     if (db_ != NULL) {
       delete db_;
@@ -66,7 +70,6 @@ class LevelDB : public DB {
  private:
   leveldb::DB* db_;
 };
-
 
 }  // namespace db
 }  // namespace caffe

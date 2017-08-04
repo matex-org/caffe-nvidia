@@ -174,6 +174,10 @@ endif
 CUDA_LIB_DIR += $(CUDA_DIR)/lib
 
 INCLUDE_DIRS += $(BUILD_INCLUDE_DIR) ./src ./include $(THIRDPARTY_DIR)
+#USE_DEEPMEM
+INCLUDE_DIRS += ./src/gtest/include ./src/gtest/
+INCLUDE_DIRS += ./src/gmock/include ./src/gmock/
+#USE_DEEPMEM END
 ifneq ($(CPU_ONLY), 1)
 	INCLUDE_DIRS += $(CUDA_INCLUDE_DIR)
 	LIBRARY_DIRS += $(CUDA_LIB_DIR)
@@ -187,6 +191,10 @@ USE_LEVELDB ?= 1
 USE_LMDB ?= 1
 USE_PNETCDF ?= 1
 USE_OPENCV ?= 1
+#USE_DEEPMEM
+USE_REMOTE_INDEX ?= 1
+USE_REMOTE_INDEX_SFTP ?= 1
+#USE_DEEPMEM END
 
 ifeq ($(USE_LEVELDB), 1)
 	LIBRARIES += leveldb snappy
@@ -196,6 +204,9 @@ ifeq ($(USE_LMDB), 1)
 endif
 ifeq ($(USE_PNETCDF), 1)
 	LIBRARIES += pnetcdf
+endif
+ifeq ($(USE_REMOTE_INDEX_SFTP), 1)
+	LIBRARIES += ssh
 endif
 ifeq ($(USE_OPENCV), 1)
 	LIBRARIES += opencv_core opencv_highgui opencv_imgproc 
@@ -365,6 +376,15 @@ endif
 ifeq ($(USE_PNETCDF), 1)
 	COMMON_FLAGS += -DUSE_PNETCDF
 endif
+ifeq ($(USE_REMOTE_INDEX), 1)
+	COMMON_FLAGS += -DUSE_REMOTE_INDEX
+endif
+ifeq ($(USE_REMOTE_INDEX_SFTP), 1)
+	COMMON_FLAGS += -DUSE_REMOTE_INDEX_SFTP
+endif
+ifeq ($(USE_DEEPMEM), 1)
+	COMMON_FLAGS += -DUSE_DEEPMEM
+endif 
 
 # CPU-only configuration
 ifeq ($(CPU_ONLY), 1)

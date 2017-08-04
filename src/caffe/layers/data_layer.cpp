@@ -95,6 +95,15 @@ void DataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
     for (int i = 0; i < this->PREFETCH_COUNT; ++i) {
       this->prefetch_[i].label_.Reshape(label_shape);
     }
+#ifdef USE_DEEPMEM
+    for (int i = 0; i < this->cache_size_; ++i)
+      this->caches_[i]->reshape(&top_shape, &label_shape);
+  }
+  else
+  {
+    for (int i = 0; i < this->cache_size_; ++i)
+      this->caches_[i]->reshape(&top_shape, NULL);
+#endif
   }
 }
 
