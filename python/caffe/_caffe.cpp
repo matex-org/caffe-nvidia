@@ -15,6 +15,8 @@
 #include <fstream>  // NOLINT
 
 #include "caffe/caffe.hpp"
+#include "caffe/layers/base_data_layer.hpp"
+#include "caffe/layers/elim_pnetcdf_all_data_layer.hpp"
 #include "caffe/layers/memory_data_layer.hpp"
 #include "caffe/layers/python_layer.hpp"
 #include "caffe/sgd_solvers.hpp"
@@ -190,12 +192,46 @@ struct NdarrayConverterGenerator {
   template <typename T> struct apply;
 };
 
+struct IntNdarrayConverterGenerator {
+  template <typename T> struct apply;
+};
+
+struct SizetNdarrayConverterGenerator {
+  template <typename T> struct apply;
+};
+
 template <>
 struct NdarrayConverterGenerator::apply<Dtype*> {
   struct type {
     PyObject* operator() (Dtype* data) const {
       // Just store the data pointer, and add the shape information in postcall.
       return PyArray_SimpleNewFromData(0, NULL, NPY_DTYPE, data);
+    }
+    const PyTypeObject* get_pytype() {
+      return &PyArray_Type;
+    }
+  };
+};
+
+template <>
+struct IntNdarrayConverterGenerator::apply<int*> {
+  struct type {
+    PyObject* operator() (int* data) const {
+      // Just store the data pointer, and add the shape information in postcall.
+      return PyArray_SimpleNewFromData(0, NULL, NPY_INT, data);
+    }
+    const PyTypeObject* get_pytype() {
+      return &PyArray_Type;
+    }
+  };
+};
+
+template <>
+struct SizetNdarrayConverterGenerator::apply<size_t*> {
+  struct type {
+    PyObject* operator() (size_t* data) const {
+      // Just store the data pointer, and add the shape information in postcall.
+      return PyArray_SimpleNewFromData(0, NULL, NPY_ULONG, data);
     }
     const PyTypeObject* get_pytype() {
       return &PyArray_Type;
@@ -221,6 +257,50 @@ struct NdarrayCallPolicies : public bp::default_call_policies {
     Py_INCREF(pyblob.ptr());
     PyArray_SetBaseObject(reinterpret_cast<PyArrayObject*>(arr_obj),
         pyblob.ptr());
+    return arr_obj;
+  }
+};
+
+struct IntElimNdarrayCallPolicies : public bp::default_call_policies {
+  typedef IntNdarrayConverterGenerator result_converter;
+  PyObject* postcall(PyObject* pyargs, PyObject* result) {
+    bp::object pyelim = bp::extract<bp::tuple>(pyargs)()[0];
+    shared_ptr<ElimPnetCDFAllDataLayer<Dtype> > elim =
+      bp::extract<shared_ptr<ElimPnetCDFAllDataLayer<Dtype> > >(pyelim);
+    // Free the temporary pointer-holding array, and construct a new one with
+    // the shape information from the elim.
+    void* data = PyArray_DATA(reinterpret_cast<PyArrayObject*>(result));
+    Py_DECREF(result);
+    const int num_axes = 1;
+    const size_t max_row = elim->MaxRow();
+    vector<npy_intp> dims(1, max_row);
+    PyObject *arr_obj = PyArray_SimpleNewFromData(num_axes, dims.data(), NPY_INT, data);
+    // SetBaseObject steals a ref, so we need to INCREF.
+    Py_INCREF(pyelim.ptr());
+    PyArray_SetBaseObject(reinterpret_cast<PyArrayObject*>(arr_obj),
+        pyelim.ptr());
+    return arr_obj;
+  }
+};
+
+struct SizetElimNdarrayCallPolicies : public bp::default_call_policies {
+  typedef SizetNdarrayConverterGenerator result_converter;
+  PyObject* postcall(PyObject* pyargs, PyObject* result) {
+    bp::object pyelim = bp::extract<bp::tuple>(pyargs)()[0];
+    shared_ptr<ElimPnetCDFAllDataLayer<Dtype> > elim =
+      bp::extract<shared_ptr<ElimPnetCDFAllDataLayer<Dtype> > >(pyelim);
+    // Free the temporary pointer-holding array, and construct a new one with
+    // the shape information from the elim.
+    void* data = PyArray_DATA(reinterpret_cast<PyArrayObject*>(result));
+    Py_DECREF(result);
+    const int num_axes = 1;
+    const int batch_size = elim->BatchSize();
+    vector<npy_intp> dims(1, batch_size);
+    PyObject *arr_obj = PyArray_SimpleNewFromData(num_axes, dims.data(), NPY_INT, data);
+    // SetBaseObject steals a ref, so we need to INCREF.
+    Py_INCREF(pyelim.ptr());
+    PyArray_SetBaseObject(reinterpret_cast<PyArrayObject*>(arr_obj),
+        pyelim.ptr());
     return arr_obj;
   }
 };
@@ -341,6 +421,13 @@ BOOST_PYTHON_MODULE(_caffe) {
     .def("step", &MPISyncGPU<Dtype>::Step);
   BP_REGISTER_SHARED_PTR_TO_PYTHON(MPISyncGPU<Dtype>);
 #endif
+
+  bp::class_<ElimPnetCDFAllDataLayer<Dtype>, shared_ptr<ElimPnetCDFAllDataLayer<Dtype> >,
+    boost::noncopyable>("ElimPnetCDFAllDataLayer", bp::init<const LayerParameter&>())
+    .add_property("max_row", bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::MaxRow))
+    .add_property("mask",    bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::Mask, IntElimNdarrayCallPolicies()))
+    .add_property("index",   bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::Index, SizetElimNdarrayCallPolicies()));
+  BP_REGISTER_SHARED_PTR_TO_PYTHON(ElimPnetCDFAllDataLayer<Dtype>);
 
   bp::class_<LayerParameter>("LayerParameter", bp::no_init);
 
