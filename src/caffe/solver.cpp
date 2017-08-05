@@ -277,8 +277,10 @@ void Solver<Dtype>::Step(int iters) {
     };
     }
     // Make sure all gradient exchanges have finished in per-level scheme
-    for (int i = 0; i < callbacks_.size(); ++i) {
-      callbacks_[i]->syncCommStream();
+    if ((last_batch && total_loss >= maximum_loss) || allreduce) {
+      for (int i = 0; i < callbacks_.size(); ++i) {
+        callbacks_[i]->syncCommStream();
+      };
     }
 
     ApplyUpdate();

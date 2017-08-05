@@ -424,9 +424,9 @@ BOOST_PYTHON_MODULE(_caffe) {
 
   bp::class_<ElimPnetCDFAllDataLayer<Dtype>, shared_ptr<ElimPnetCDFAllDataLayer<Dtype> >,
     boost::noncopyable>("ElimPnetCDFAllDataLayer", bp::init<const LayerParameter&>())
-    .add_property("max_row", bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::MaxRow))
-    .add_property("mask",    bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::Mask, IntElimNdarrayCallPolicies()))
-    .add_property("index",   bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::Index, SizetElimNdarrayCallPolicies()));
+    .add_property("count", bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::MaxRow))
+    .add_property("classification_list",    bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::Mask, IntElimNdarrayCallPolicies()))
+    .add_property("indices",   bp::make_function(&ElimPnetCDFAllDataLayer<Dtype>::Index, SizetElimNdarrayCallPolicies()));
   BP_REGISTER_SHARED_PTR_TO_PYTHON(ElimPnetCDFAllDataLayer<Dtype>);
 
   bp::class_<LayerParameter>("LayerParameter", bp::no_init);
@@ -440,6 +440,12 @@ BOOST_PYTHON_MODULE(_caffe) {
     //.add_property("update", &Solver<Dtype>::update)
     //.add_property("allreduce", &Solver<Dtype>::allreduce)
     .add_property("iter", &Solver<Dtype>::iter)
+    .add_property("total_loss", &Solver<Dtype>::total_loss)
+    .add_property("maximum_loss", &Solver<Dtype>::maximum_loss)
+    .add_property("last_batch", &Solver<Dtype>::last_batch)
+    .def("set_total_loss", &Solver<Dtype>::set_total_loss)
+    .def("set_maximum_loss", &Solver<Dtype>::set_maximum_loss)
+    .def("set_last_batch", &Solver<Dtype>::set_last_batch)
     .def("solve", static_cast<void (Solver<Dtype>::*)(const char*)>(
           &Solver<Dtype>::Solve), SolveOverloads())
     .def("step", &Solver<Dtype>::Step)
