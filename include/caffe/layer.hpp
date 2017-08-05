@@ -427,6 +427,13 @@ class Layer {
     }
   }
 
+ public:
+  /* added for YinYang only */
+  virtual int BatchSize() const { return 0; }
+  virtual size_t MaxRow() const { return 0; }
+  virtual int* Mask() { return NULL; }
+  virtual size_t* Index() { return NULL; }
+
  private:
   /** Whether this layer is actually shared by other nets*/
   bool is_shared_;

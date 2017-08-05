@@ -33,10 +33,10 @@ class ElimPnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
 
-  int BatchSize() const { return this->layer_param_.data_param().batch_size(); }
-  size_t MaxRow() const { return max_row_; }
-  int* Mask() { return mask_; }
-  size_t* Index() { return index_prefetch_current_; }
+  virtual int BatchSize() const { return this->layer_param_.data_param().batch_size(); }
+  virtual size_t MaxRow() const { return max_row_; }
+  virtual int* Mask() { return mask_; }
+  virtual size_t* Index() { return index_prefetch_current_; }
 
   using BasePrefetchingDataLayer<Dtype>::PREFETCH_COUNT;
 

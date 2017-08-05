@@ -65,6 +65,10 @@ void Solver<Dtype>::Init(const SolverParameter& param) {
   }
   iter_ = 0;
   current_step_ = 0;
+  allreduce = true;
+  total_loss = 0.0;
+  maximum_loss = 0.0;
+  last_batch = true;
 }
 
 template <typename Dtype>

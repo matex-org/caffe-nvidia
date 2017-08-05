@@ -47,15 +47,15 @@ class Solver {
   void Init(const SolverParameter& param);
   void InitTrainNet();
   void InitTestNets();
-  bool allreduce = true;
   void set_allreduce(bool value) {allreduce = value;}
-  double total_loss = 0.0;
-  float maximum_loss = 0.0;
   void set_total_loss(float value) {total_loss = value;}
   void set_maximum_loss(float value) {maximum_loss = value;}
-  bool last_batch = true;
   void set_last_batch(bool value) {last_batch = value;}
 
+  bool allreduce;
+  double total_loss;
+  float maximum_loss;
+  bool last_batch;
 
   // Client of the Solver optionally may call this in order to set the function
   // that the solver uses to see what action it should take (e.g. snapshot or
