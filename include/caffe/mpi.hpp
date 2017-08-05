@@ -63,6 +63,10 @@ void iallreduce(MPI_Request &request, double* buffer, int count,
 void waitall(std::vector<MPI_Request> &requests);
 bool test(MPI_Request &request);
 
+void bcast(unsigned long &value, int root=0, MPI_Comm comm=MPI_COMM_NULL);
+void bcast(std::vector<int> &value, int root=0, MPI_Comm comm=MPI_COMM_NULL);
+void bcast(signed char* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
+void bcast(int* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 void bcast(float* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 void bcast(double* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 
