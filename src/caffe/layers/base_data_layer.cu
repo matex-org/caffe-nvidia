@@ -10,6 +10,8 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   DLOG(INFO) << "FGPU Call";
 #ifdef USE_DEEPMEM
   Batch<Dtype> * batch;
+  volatile bool *dirtybit;
+  PopBatch<Dtype>* p_batch;
   DLOG(INFO) << "FCPU Call DEEPMEM";
   if(cache_size_)
   {
@@ -19,6 +21,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
 //       CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 //     }
 // #endif
+    // PopBatch<Dtype> p_batch;
     //Do we handle the refill on l1 cache?
     if(!caches_[0]->prefetch && caches_[0]->empty()) //empty cache
     {
@@ -27,6 +30,8 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
       (caches_[0]->*(caches_[0]->local_refill_policy))(1);
     }
     batch = l0cache_full_.pop("Prefetch cache queue empty (GPU)");
+    dirtybit = dirtybit_.front();//("DirtyBit GPU");
+    dirtybit_.pop();
   }
   else //Use the original unmofified code to get a batch
   {
@@ -76,11 +81,12 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   // copied in meanwhile.
   CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
 #ifdef USE_DEEPMEM
-  // if(cache_size_) {
-    // We finished copy the batch so mark it for replacement
-    // *pop_batch.dirty = true;
-  //  l0cache_free_.push(batch);
-  // }
+  if(cache_size_) {
+  // We finished copy the batch so mark it for replacement
+    *dirtybit = true;
+    // *(p_batch->dirty) = true;
+    // l0cache_free_.push(batch);
+  }
   //Use the orginal code if caches are turned off
   if(cache_size_ == 0 || caches_[0]->size == 0)
     prefetch_free_.push(batch);

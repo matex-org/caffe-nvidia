@@ -326,14 +326,15 @@ void MemoryCache<Dtype>::mutate_data(bool labels)
     }
   }
 #ifndef CPU_ONLY
-  for(int i=0; i< Cache<Dtype>::size; i++) {
-      cache[i].data_.mutable_gpu_data();
-    }
-  if (labels) {
+ if (Caffe::mode() == Caffe::GPU) {
     for(int i=0; i< Cache<Dtype>::size; i++) {
-      cache[i].label_.mutable_gpu_data();
+      cache[i].data_.mutable_gpu_data();
+      if (labels) {
+        cache[i].label_.mutable_gpu_data();
+      }
+      CUDA_CHECK(cudaEventCreate(&cache[i].copied_));
     }
-  }
+ }
 #endif
 }
 template <typename Dtype>
@@ -636,14 +637,18 @@ void DiskCache<Dtype>::mutate_data(bool labels)
   //for(int i=0; i< Cache<Dtype>::size; i++) {
      // cache[i].data_.mutable_gpu_data();
     //}
-      cache_buffer->data_.mutable_gpu_data();
-      cache_read_buffer->data_.mutable_gpu_data();
-  if (labels) {
+ if (Caffe::mode() == Caffe::GPU) {
+    cache_buffer->data_.mutable_gpu_data();
+    cache_read_buffer->data_.mutable_gpu_data();
+    if (labels) {
       cache_buffer->label_.mutable_gpu_data();
       cache_read_buffer->label_.mutable_gpu_data();
     //for(int i=0; i< Cache<Dtype>::size; i++) {
       //cache_buffer->label_.mutable_gpu_data();
     //}
+    }
+    CUDA_CHECK(cudaEventCreate(&cache_buffer->copied_));
+    CUDA_CHECK(cudaEventCreate(&cache_read_buffer->copied_));
   }
 #endif
 }

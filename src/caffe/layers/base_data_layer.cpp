@@ -67,29 +67,6 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       caches_[i-1]->size = param.data_param().cache(j).size();
       caches_[i-1]->create( new Batch<Dtype>[caches_[i-1]->size], new bool[caches_[i-1]->size], thread_safe );
     }
-//  #ifdef KNL
-//    else if(param.data_param().cache(j).type() == CacheParameter::HBM)
-//    {
-//      //Use hbm to create a new cache, set size, and dirty structure
-//      void * ptr = hbw_malloc(sizeof(MemoryCache<Dtype>));
-//      caches_[i-1] = new (ptr) MemoryCache<Dtype>;
-//      caches_[i-1]->size = param.data_param().cache(j).size();
-//      ptr = hbw_malloc(sizeof(Batch<Dtype>)*caches_[i-1]->size);
-//      bool * ptr2 = (bool *)hbw_malloc(sizeof(bool)*caches_[i-1]->size);
-//      caches_[i-1]->create( new (ptr) Batch<Dtype>[caches_[i-1]->size], ptr2, thread_safe );
-//    }
-//    else if(param.data_param().cache(j).type() == CacheParameter::DISK)
-//    {
-//      //Use hbm to create a new cache, read/write bufs, set size, and dirty structure
-//      void * ptr = hbw_malloc(sizeof(DiskCache<Dtype>));
-//      caches_[i-1] = new (ptr) DiskCache<Dtype>;
-//      caches_[i-1]->size = param.data_param().cache(j).size();
-//      //Read/write buffer
-//      ptr = hbw_malloc(sizeof(Batch<Dtype>)*2);
-//      bool * ptr2 = (bool *)hbw_malloc(sizeof(bool)*caches_[i-1]->size);
-//      caches_[i-1]->create( new (ptr) Batch<Dtype>[2], ptr2, thread_safe );
-//    }
-//  #else
     else if(param.data_param().cache(j).type() == CacheParameter::DISK)
     {
       caches_[i-1] = new DiskCache<Dtype>;
@@ -154,11 +131,6 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
       prefetch_[i].label_.mutable_cpu_data();
     }
   }
-#ifdef USE_DEEPMEM
-  for (int i = 0; i < cache_size_; ++i) {
-    caches_[i]->mutate_data(this->output_labels_);
-  }
-#endif
 #ifndef CPU_ONLY
   if (Caffe::mode() == Caffe::GPU) {
     for (int i = 0; i < PREFETCH_COUNT; ++i) {
@@ -168,78 +140,31 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
       }
       CUDA_CHECK(cudaEventCreate(&prefetch_[i].copied_));
     }
-#ifdef USE_DEEPMEM
-    typedef MemoryCache<Dtype> MemCacheType;
-    //Setup the caches data
-    for (int i = 0; i < cache_size_; ++i) {
-      for (int j = 0; j < caches_[i]->size; ++j) {
-        // caches_[i]->cache[j].data_.mutable_gpu_data();
-        // typedef DiskCache<Dtype> DiskCacheType;
-        MemCacheType * memcache;
-        // DiskCacheType * diskcache;
-        if((memcache
-            = dynamic_cast<MemCacheType *>(caches_[i]))) {
-          memcache->cache[j].data_.mutable_cpu_data();
-#ifndef CPU_ONLY
-          if (Caffe::mode() == Caffe::GPU) {
-            memcache->cache[j].data_.mutable_gpu_data();
-          }
 #endif
-        }
-        // else if (diskcache
-        //     = dynamic_cast<DiskCacheType *>(caches_[i])){
-        //   diskcache->cache[j].data_.mutable_gpu_data();
-        // }
-        else {
-          LOG(INFO) << "Unsupported Cache Type. DiskCache?";
-        }
 
-        if (this->output_labels_) {
-          // caches_[i]->cache[j].label_.mutable_gpu_data();
-          if((memcache
-              = dynamic_cast<MemoryCache<Dtype> *>(caches_[i]))) {
-            memcache->cache[j].label_.mutable_cpu_data();
-#ifndef CPU_ONLY
-            if (Caffe::mode() == Caffe::GPU) {
-              memcache->cache[j].label_.mutable_gpu_data();
-            }
-#endif
-          }
-          // else if (DiskCache * diskcache
-          //     = dynamic_cast<DiskCache<Dtype> *>(caches_[i])){
-          //   diskcache->cache[j].label_.mutable_gpu_data();
-          // }
-          else {
-            LOG(INFO) << "Unsupported Cache Type. DiskCache?";
-          }
-        }
-      }
-    }
-#ifndef CPU_ONLY
-    MemCacheType * memcache;
-    if(( memcache = dynamic_cast<MemCacheType *>(caches_[0]))) {
-      l0cache_free_.push(&(memcache->cache[memcache->last_i]));
-    }
-#endif
-#endif
+#ifdef USE_DEEPMEM
+  for (int i = 0; i < cache_size_; ++i) {
+    caches_[i]->mutate_data(this->output_labels_);
   }
 #endif
+  }
   DLOG(INFO) << "Initializing prefetch";
   this->data_transformer_->InitRand();
 
-// #ifdef USE_DEEPMEM
-//   for (int i = 0; i < cache_size_; ++i) {
-//     caches_[i]->fill(false);
-//   }
-// #endif
-
-//   // Only if GPU mode on then we use background threads
-// #ifdef USE_DEEPMEM
-// //If the global prefetch is set create a prefetch thread which is just below
-//   if (prefetch) {
-// #else
-//   if (Caffe::mode() == Caffe::GPU) {
-// #endif
+/*
+#ifdef USE_DEEPMEM
+ for (int i = 0; i < cache_size_; ++i) {
+    caches_[i]->fill(false);
+  }
+#endif
+  // Only if GPU mode on then we use background threads
+#ifdef USE_DEEPMEM
+//If the global prefetch is set create a prefetch thread which is just below
+  if (prefetch) {
+#else
+  if (Caffe::mode() == Caffe::GPU) {
+#endif
+*/
 
   StartInternalThread();
   DLOG(INFO) << "Prefetch initialized.";
@@ -247,12 +172,6 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
 
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
-// #ifndef CPU_ONLY
-//   cudaStream_t stream;
-//   if (Caffe::mode() == Caffe::GPU) {
-//     CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-//   }
-// #endif
 DLOG(INFO) << "InternalThrdEnt";
 #ifdef USE_DEEPMEM
   try {
@@ -269,9 +188,10 @@ DLOG(INFO) << "InternalThrdEnt";
           if(caches_[i]->prefetch)
             (caches_[i]->*(caches_[i]->refill_policy))(1);
         }
-        Batch<Dtype>* batch; // = l0cache_free_.pop();
+        // Batch<Dtype>* batch = prefetch_free_.pop();
+        // load_batch(batch);
         PopBatch<Dtype> pop_batch = caches_[0]->pop();
-        batch = pop_batch.batch;
+        Batch<Dtype>* batch = pop_batch.batch;
 #ifndef CPU_ONLY
         if (Caffe::mode() == Caffe::GPU) {
           batch->data_.data()->async_gpu_push();
@@ -282,12 +202,15 @@ DLOG(INFO) << "InternalThrdEnt";
           // free(stream);
           // free(batch->copied_);
           // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+          DLOG(INFO) << "Before CudaEvenRecord ";
           CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
           // free(batch->copied_);
           CUDA_CHECK(cudaStreamSynchronize(stream));
         }
         l0cache_full_.push(batch);
-        *pop_batch.dirty = true;
+        dirtybit_.push(pop_batch.dirty);
+        // l0cache_full_.push(batch);
+        // *pop_batch.dirty = true;
 #endif
       } else {
         // Use Default approach:
@@ -406,3 +329,75 @@ INSTANTIATE_CLASS(BaseDataLayer);
 INSTANTIATE_CLASS(BasePrefetchingDataLayer);
 
 }  // namespace caffe
+
+/*
+#ifdef USE_DEEPMEM
+    if(cache_size_) {
+      typedef MemoryCache<Dtype> MemCacheType;
+      //Setup the caches data
+      for (int i = 0; i < cache_size_; ++i) {
+        for (int j = 0; j < caches_[i]->size; ++j) {
+          MemCacheType * memcache;
+          // DiskCacheType * diskcache;
+          if((memcache
+              = dynamic_cast<MemCacheType *>(caches_[i]))) {
+            memcache->cache[j].data_.mutable_cpu_data();
+            if (this->output_labels_) {
+              memcache->cache[j].label_.mutable_cpu_data();
+            }
+#ifndef CPU_ONLY
+            if (Caffe::mode() == Caffe::GPU) {
+              memcache->cache[j].data_.mutable_gpu_data();
+              if (this->output_labels_) {
+                memcache->cache[j].label_.mutable_gpu_data();
+              }
+              CUDA_CHECK(cudaEventCreate(&memcache->cache[j].copied_));
+            }
+#endif
+          } else {
+          LOG(INFO) << "Unsupported Cache Type. DiskCache?";
+        }
+      }
+    }
+#ifndef CPU_ONLY
+    MemCacheType * memcache;
+    if(( memcache = dynamic_cast<MemCacheType *>(caches_[0]))) {
+      l0cache_free_.push(&(memcache->cache[memcache->last_i]));
+    }
+#endif
+    // load/fill batches to the caches
+    // for (int i = 0; i < cache_size_; ++i) {
+    //   caches_[i]->fill(false);
+    // }
+    }
+#endif
+*/
+// #ifndef CPU_ONLY
+//   cudaStream_t stream;
+//   if (Caffe::mode() == Caffe::GPU) {
+//     CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+//   }
+// #endif
+//  #ifdef KNL
+//    else if(param.data_param().cache(j).type() == CacheParameter::HBM)
+//    {
+//      //Use hbm to create a new cache, set size, and dirty structure
+//      void * ptr = hbw_malloc(sizeof(MemoryCache<Dtype>));
+//      caches_[i-1] = new (ptr) MemoryCache<Dtype>;
+//      caches_[i-1]->size = param.data_param().cache(j).size();
+//      ptr = hbw_malloc(sizeof(Batch<Dtype>)*caches_[i-1]->size);
+//      bool * ptr2 = (bool *)hbw_malloc(sizeof(bool)*caches_[i-1]->size);
+//      caches_[i-1]->create( new (ptr) Batch<Dtype>[caches_[i-1]->size], ptr2, thread_safe );
+//    }
+//    else if(param.data_param().cache(j).type() == CacheParameter::DISK)
+//    {
+//      //Use hbm to create a new cache, read/write bufs, set size, and dirty structure
+//      void * ptr = hbw_malloc(sizeof(DiskCache<Dtype>));
+//      caches_[i-1] = new (ptr) DiskCache<Dtype>;
+//      caches_[i-1]->size = param.data_param().cache(j).size();
+//      //Read/write buffer
+//      ptr = hbw_malloc(sizeof(Batch<Dtype>)*2);
+//      bool * ptr2 = (bool *)hbw_malloc(sizeof(bool)*caches_[i-1]->size);
+//      caches_[i-1]->create( new (ptr) Batch<Dtype>[2], ptr2, thread_safe );
+//    }
+//  #else

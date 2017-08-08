@@ -122,6 +122,9 @@ class BasePrefetchingDataLayer :
   // For GPU feed/stream
   BlockingQueue<Batch<Dtype>*> l0cache_free_;
   BlockingQueue<Batch<Dtype>*> l0cache_full_;
+  // BlockingQueue<PopBatch<Dtype>*> l0cache_full_;
+  std::queue<volatile bool*> dirtybit_;
+  // BlockingQueue<PopBatch<Dtype>*> l0cache_full_;
 #endif
   vector<Dtype> historical_accuracy_;
 
