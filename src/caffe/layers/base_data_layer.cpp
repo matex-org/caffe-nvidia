@@ -41,11 +41,14 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   //LOG(INFO) << "Cache size" << param.data_param().cache_size(0);
   cache_size_ = param.data_param().cache_size();
   LOG(INFO) << "Caches " << cache_size_;
+  DLOG(INFO) << "BPDL Initialization";
   prefetch=false;
+  // DLOG(INFO) << "CacheSize: " << cache_size_;
   if(cache_size_)
   {
     // Allocate No of Caches (Count = Num Level of Caches ? )
     caches_ = new Cache<Dtype> * [cache_size_];
+    DLOG(INFO) << "Cache Created ,num: " << cache_size_;
   }
   for(int i = cache_size_, j=0; i > 0; i--, j++)
   {
@@ -116,7 +119,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     caches_[i-1]->refill_policy = &Cache<Dtype>::rate_replace_policy;
     caches_[i-1]->local_refill_policy = &Cache<Dtype>::local_rate_replace_policy;
     caches_[i-1]->disk_location = param.data_param().cache(j).disk_location();
-    LOG(INFO) << "Cacher " <<  param.data_param().cache(j).disk_location() << " " << caches_[i-1]->disk_location;
+    LOG(INFO) << "Caches " <<  param.data_param().cache(j).disk_location() << " " << caches_[i-1]->disk_location;
   }
 
   //Setup cache to point one level below
@@ -142,6 +145,7 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   // cudaMalloc calls when the main thread is running. In some GPUs this
   // seems to cause failures if we do not so.
 #ifdef USE_DEEPMEM
+  DLOG(INFO) << "BasePrefetchingData LayerSetup";
   randomGen.Init();
 #endif
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
@@ -165,17 +169,22 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
       CUDA_CHECK(cudaEventCreate(&prefetch_[i].copied_));
     }
 #ifdef USE_DEEPMEM
+    typedef MemoryCache<Dtype> MemCacheType;
     //Setup the caches data
     for (int i = 0; i < cache_size_; ++i) {
       for (int j = 0; j < caches_[i]->size; ++j) {
         // caches_[i]->cache[j].data_.mutable_gpu_data();
-        typedef MemoryCache<Dtype> MemCacheType;
         // typedef DiskCache<Dtype> DiskCacheType;
         MemCacheType * memcache;
         // DiskCacheType * diskcache;
         if((memcache
             = dynamic_cast<MemCacheType *>(caches_[i]))) {
-          memcache->cache[j].data_.mutable_gpu_data();
+          memcache->cache[j].data_.mutable_cpu_data();
+#ifndef CPU_ONLY
+          if (Caffe::mode() == Caffe::GPU) {
+            memcache->cache[j].data_.mutable_gpu_data();
+          }
+#endif
         }
         // else if (diskcache
         //     = dynamic_cast<DiskCacheType *>(caches_[i])){
@@ -189,7 +198,12 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
           // caches_[i]->cache[j].label_.mutable_gpu_data();
           if((memcache
               = dynamic_cast<MemoryCache<Dtype> *>(caches_[i]))) {
-            memcache->cache[j].label_.mutable_gpu_data();
+            memcache->cache[j].label_.mutable_cpu_data();
+#ifndef CPU_ONLY
+            if (Caffe::mode() == Caffe::GPU) {
+              memcache->cache[j].label_.mutable_gpu_data();
+            }
+#endif
           }
           // else if (DiskCache * diskcache
           //     = dynamic_cast<DiskCache<Dtype> *>(caches_[i])){
@@ -201,17 +215,23 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
         }
       }
     }
+#ifndef CPU_ONLY
+    MemCacheType * memcache;
+    if(( memcache = dynamic_cast<MemCacheType *>(caches_[0]))) {
+      l0cache_free_.push(&(memcache->cache[memcache->last_i]));
+    }
+#endif
 #endif
   }
 #endif
   DLOG(INFO) << "Initializing prefetch";
   this->data_transformer_->InitRand();
 
-#ifdef USE_DEEPMEM
-  for (int i = 0; i < cache_size_; ++i) {
-    caches_[i]->fill(false);
-  }
-#endif
+// #ifdef USE_DEEPMEM
+//   for (int i = 0; i < cache_size_; ++i) {
+//     caches_[i]->fill(false);
+//   }
+// #endif
 
 //   // Only if GPU mode on then we use background threads
 // #ifdef USE_DEEPMEM
@@ -233,18 +253,63 @@ void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
 //     CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
 //   }
 // #endif
+DLOG(INFO) << "InternalThrdEnt";
 #ifdef USE_DEEPMEM
-  while (!must_stop()) {
-    if(cache_size_)
-    {
-      for(int i=cache_size_-1; i>= 0; i--)
+  try {
+    while (!must_stop()) {
+      if(cache_size_)
       {
-        //If we handle the refilling apply the member pointer to the current
-        //Cache class
-        if(caches_[i]->prefetch)
-          (caches_[i]->*(caches_[i]->refill_policy))(1);
+        for (int i = 0; i < cache_size_; ++i) {
+          caches_[i]->fill(false);
+        }
+        for(int i=cache_size_-1; i>= 0; i--)
+        {
+          //If we handle the refilling apply the member pointer to the current
+          //Cache class
+          if(caches_[i]->prefetch)
+            (caches_[i]->*(caches_[i]->refill_policy))(1);
+        }
+        Batch<Dtype>* batch; // = l0cache_free_.pop();
+        PopBatch<Dtype> pop_batch = caches_[0]->pop();
+        batch = pop_batch.batch;
+#ifndef CPU_ONLY
+        if (Caffe::mode() == Caffe::GPU) {
+          batch->data_.data()->async_gpu_push();
+          if (this->output_labels_) {
+              batch->label_.data()->async_gpu_push();
+          }
+          cudaStream_t stream = batch->data_.data()->stream();
+          // free(stream);
+          // free(batch->copied_);
+          // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+          CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
+          // free(batch->copied_);
+          CUDA_CHECK(cudaStreamSynchronize(stream));
+        }
+        l0cache_full_.push(batch);
+        *pop_batch.dirty = true;
+#endif
+      } else {
+        // Use Default approach:
+        Batch<Dtype>* batch = prefetch_free_.pop();
+        load_batch(batch);
+#ifndef CPU_ONLY
+        if (Caffe::mode() == Caffe::GPU) {
+          batch->data_.data()->async_gpu_push();
+          if (this->output_labels_) {
+              batch->label_.data()->async_gpu_push();
+          }
+          cudaStream_t stream = batch->data_.data()->stream();
+          // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+          CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
+          CUDA_CHECK(cudaStreamSynchronize(stream));
+        }
+#endif
+        prefetch_full_.push(batch);
       }
     }
+  } catch (boost::thread_interrupted&) {
+    // Interrupted exception is expected on shutdown
   }
 #else
   try {
@@ -273,10 +338,12 @@ void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  DLOG(INFO) << "FCPU Call";
 #ifdef USE_DEEPMEM
   Batch<Dtype> * batch;
   PopBatch<Dtype> pop_batch;
   //If there are any caches
+  DLOG(INFO) << "FCPU Call DEEPMEM";
   if(cache_size_)
   {
     //Do we handle the refill on l1 cache?
@@ -289,7 +356,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     pop_batch = caches_[0]->pop();
     batch = pop_batch.batch;
   }
-  else //Use the original unmofified code to get a batch
+  else //Use the original unmodified code to get a batch
   {
     //int accuracySize = historical_accuracy.size();
     //for(int i=0; i< accuracySize; i++)
@@ -302,6 +369,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     batch = prefetch_full_.pop("Prefetch cache queue empty");
   }
 #else
+  DLOG(INFO) << "FCPU Original Call, no DEEPMEM";
   Batch<Dtype>* batch = prefetch_full_.pop("Data layer prefetch queue empty");
 #endif
 

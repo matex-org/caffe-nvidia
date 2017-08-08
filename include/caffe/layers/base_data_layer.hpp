@@ -118,6 +118,11 @@ class BasePrefetchingDataLayer :
 
 #ifdef USE_DEEPMEM
   Cache<Dtype> ** caches_;
+#ifndef CPU_ONLY
+  // For GPU feed/stream
+  BlockingQueue<Batch<Dtype>*> l0cache_free_;
+  BlockingQueue<Batch<Dtype>*> l0cache_full_;
+#endif
   vector<Dtype> historical_accuracy_;
 
   friend class Cache<Dtype>;
