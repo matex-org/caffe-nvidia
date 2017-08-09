@@ -151,6 +151,7 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
     recv_pair_(0),
     solver_(),
     sgdsolver_(),
+    adamsolver_(),
     params_(root_solver->net()->learnable_params()),
 #ifdef USE_MPI
     comms_(),
@@ -158,6 +159,7 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
     data_all_(),
     history_(),
     history_all_(),
+    history_size_(),
     cube_(cube),
     rotate_(rotate)
 {
@@ -218,6 +220,10 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
   if (NULL == sgdsolver_) {
       LOG(FATAL) << "dynamic cast of SGDSolver failed";
   }
+  adamsolver_ = boost::dynamic_pointer_cast<AdamSolver<Dtype> >(root_solver);
+  if (NULL == adamsolver_) {
+      LOG(INFO) << "dynamic cast of AdamSolver failed";
+  }
 
   comm_rank_ = caffe::mpi::comm_rank(comms_[0]);
   comm_rank_orig_ = comm_rank_;
@@ -233,17 +239,25 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
       size_ * sizeof(Dtype), param.device_id(), stream_);
   caffe_gpu_set(size_, Dtype(0), data_all_);
 
-  //history_ = new Dtype[size_];
+  /* AdamSolver has history that is twice the size */
+  if (NULL != adamsolver_) {
+    history_size_ = size_ * 2;
+  }
+  else {
+    history_size_ = size_;
+  }
+
+  //history_ = new Dtype[history_size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&history_),
-      size_ * sizeof(Dtype), param.device_id(), stream_);
-  caffe_gpu_set(size_, Dtype(0), history_);
+      history_size_ * sizeof(Dtype), param.device_id(), stream_);
+  caffe_gpu_set(history_size_, Dtype(0), history_);
 
-  //history_all_ = new Dtype[size_];
+  //history_all_ = new Dtype[history_size_];
   GPUMemory::allocate(reinterpret_cast<void **>(&history_all_),
-      size_ * sizeof(Dtype), param.device_id(), stream_);
-  caffe_gpu_set(size_, Dtype(0), history_all_);
+      history_size_ * sizeof(Dtype), param.device_id(), stream_);
+  caffe_gpu_set(history_size_, Dtype(0), history_all_);
 
-  apply_buffers(sgdsolver_->history(), history_, size_, replace_gpu);
+  apply_buffers(sgdsolver_->history(), history_, history_size_, replace_gpu);
 
 #else
   NO_MPI;
@@ -260,6 +274,7 @@ MPIGossipParamsGPU2<Dtype>::~MPIGossipParamsGPU2() {
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
+  timer_.Start();
 }
 
 template<typename Dtype>
@@ -288,17 +303,10 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
   // exchange data
   {
       MPI_Comm comm = comms_[mci_];
-#if 0
-      caffe::mpi::sendrecv(
-              data_,     size_, send_pair_, 1234,
-              data_all_, size_, recv_pair_, 1234, comm);
-#endif
-#if 1
       vector<MPI_Request> requests(2);
       caffe::mpi::irecv(requests[0], data_all_, size_, recv_pair_, 1234, comm);
       caffe::mpi::isend(requests[1], data_,     size_, send_pair_, 1234, comm);
       caffe::mpi::waitall(requests);
-#endif
   }
 
 #if EXCHANGE_HISTORY_ON_UPDATE
@@ -306,17 +314,10 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
   // exchange history
   {
       MPI_Comm comm = comms_[mci_];
-#if 0
-      caffe::mpi::sendrecv(
-              history_,     size_, send_pair_, 1234,
-              history_all_, size_, recv_pair_, 1234, comm);
-#endif
-#if 1
       vector<MPI_Request> requests(2);
-      caffe::mpi::irecv(requests[0], history_all_, size_, recv_pair_, 2345, comm);
-      caffe::mpi::isend(requests[1], history_,     size_, send_pair_, 2345, comm);
+      caffe::mpi::irecv(requests[0], history_all_, history_size_, recv_pair_, 2345, comm);
+      caffe::mpi::isend(requests[1], history_,     history_size_, send_pair_, 2345, comm);
       caffe::mpi::waitall(requests);
-#endif
   }
 #endif
 
@@ -329,7 +330,7 @@ void MPIGossipParamsGPU2<Dtype>::allreduce() {
 #else
   {
     // average pairwise exchange
-    caffe_gpu_axpby(size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
+    caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
   }
 #endif
 
@@ -357,22 +358,16 @@ void MPIGossipParamsGPU2<Dtype>::on_update() {
   // exchange history
   {
       MPI_Comm comm = comms_[mci_];
-#if 0
-      caffe::mpi::sendrecv(
-              history_,     size_, send_pair_, 1234,
-              history_all_, size_, recv_pair_, 1234, comm);
-#endif
-#if 1
       vector<MPI_Request> requests(2);
-      caffe::mpi::irecv(requests[0], history_all_, size_, recv_pair_, 2345, comm);
-      caffe::mpi::isend(requests[1], history_,     size_, send_pair_, 2345, comm);
+      caffe::mpi::irecv(requests[0], history_all_, history_size_, recv_pair_, 2345, comm);
+      caffe::mpi::isend(requests[1], history_,     history_size_, send_pair_, 2345, comm);
       caffe::mpi::waitall(requests);
-#endif
   }
   {
     // average pairwise exchange
-    caffe_gpu_axpby(size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
+    caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
     // must copy history back into gradient diff also
+    // in the case of adam, only the first portion is relevant
     caffe_copy(size_, history_, diff_);
   }
 #endif

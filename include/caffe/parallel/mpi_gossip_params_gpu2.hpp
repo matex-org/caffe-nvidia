@@ -53,6 +53,7 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   int recv_pair_;
   shared_ptr<Solver<Dtype> > solver_;
   shared_ptr<SGDSolver<Dtype> > sgdsolver_;
+  shared_ptr<AdamSolver<Dtype> > adamsolver_;
   const vector<Blob<Dtype>*>& params_;
 #ifdef USE_MPI
   vector<MPI_Comm> comms_;
@@ -60,6 +61,7 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   Dtype *data_all_;
   Dtype *history_;
   Dtype *history_all_;
+  size_t history_size_;
   bool cube_;
   bool rotate_;
 
