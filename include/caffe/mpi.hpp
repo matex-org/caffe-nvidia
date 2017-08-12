@@ -60,6 +60,7 @@ void iallreduce(MPI_Request &request, float* buffer, int count,
 void iallreduce(MPI_Request &request, double* buffer, int count,
         MPI_Op op=MPI_SUM, MPI_Comm comm=MPI_COMM_NULL);
 
+bool testall(std::vector<MPI_Request> &requests);
 void waitall(std::vector<MPI_Request> &requests);
 bool test(MPI_Request &request);
 

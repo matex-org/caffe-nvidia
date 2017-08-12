@@ -18,6 +18,7 @@ namespace bp = boost::python;
 #include "caffe/parallel/mpi_gossip_params_gpu.hpp"
 #include "caffe/parallel/mpi_gossip_params_gpu2.hpp"
 #include "caffe/parallel/mpi_gossip_params_gpu3.hpp"
+#include "caffe/parallel/mpi_gossip_params_gpu4.hpp"
 #include "caffe/parallel/mpi_nccl_async.hpp"
 #include "caffe/parallel/mpi_nccl_sync.hpp"
 #include "caffe/parallel/mpi_sync_gpu.hpp"
@@ -322,6 +323,13 @@ int train() {
     }
     else if (FLAGS_par == "MPIGossipParamsGPU3") {
       caffe::MPIGossipParamsGPU3<float> sync(solver, solver->param(),
+          FLAGS_comm_threads,
+          FLAGS_cube,
+          FLAGS_rotate);
+      sync.Run();
+    }
+    else if (FLAGS_par == "MPIGossipParamsGPU4") {
+      caffe::MPIGossipParamsGPU4<float> sync(solver, solver->param(),
           FLAGS_comm_threads,
           FLAGS_cube,
           FLAGS_rotate);

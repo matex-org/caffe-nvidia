@@ -420,6 +420,14 @@ void bcast(float* buffer, int count, int root, MPI_Comm comm) {
   }
 }
 
+bool testall(std::vector<MPI_Request> &requests) {
+  int flag = 0;
+  if (MPI_SUCCESS != MPI_Testall(requests.size(), &requests[0], &flag, MPI_STATUSES_IGNORE)) {
+    throw std::runtime_error("MPI_Waitall failed");
+  }
+  return flag;
+}
+
 void waitall(std::vector<MPI_Request> &requests) {
   if (MPI_SUCCESS != MPI_Waitall(requests.size(), &requests[0], MPI_STATUSES_IGNORE)) {
     throw std::runtime_error("MPI_Waitall failed");

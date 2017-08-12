@@ -13,7 +13,7 @@
 #include "caffe/caffe.hpp"
 #include "caffe/mpi.hpp"
 #include "caffe/parallel.hpp"
-#include "caffe/parallel/mpi_gossip_params_gpu3.hpp"
+#include "caffe/parallel/mpi_gossip_params_gpu4.hpp"
 #include "caffe/parallel/stats.h"
 #include "caffe/util/benchmark.hpp"
 #include "caffe/util/gpu_memory.hpp"
@@ -57,9 +57,9 @@ static void apply_buffers(const vector<shared_ptr<Blob<Dtype> > >& blobs,
 }
 
 template<typename Dtype>
-class MPIGossipParamsGPU3<Dtype>::Reducer : public InternalThread {
+class MPIGossipParamsGPU4<Dtype>::Reducer : public InternalThread {
   public:
-    MPIGossipParamsGPU3<Dtype> *sync_;
+    MPIGossipParamsGPU4<Dtype> *sync_;
     int tid_;
     Timer timer_queue_;
     double time_in_queue_;
@@ -68,7 +68,7 @@ class MPIGossipParamsGPU3<Dtype>::Reducer : public InternalThread {
     stats_t stats_queue_;
     stats_t stats_comm_;
 
-    Reducer(MPIGossipParamsGPU3<Dtype> *sync, int tid)
+    Reducer(MPIGossipParamsGPU4<Dtype> *sync, int tid)
         : sync_(sync), tid_(tid),
         timer_queue_(), time_in_queue_(0.0),
         timer_comm_(), time_in_comm_(0.0),
@@ -152,7 +152,7 @@ static void get_pointers(const vector<Blob<Dtype>*>& blobs,
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::next() {
+void MPIGossipParamsGPU4<Dtype>::next() {
   if (cube_) {
     if (rotate_) {
       next_cube_rotate();
@@ -173,7 +173,7 @@ void MPIGossipParamsGPU3<Dtype>::next() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::next_cube() {
+void MPIGossipParamsGPU4<Dtype>::next_cube() {
   if (hci_ > logp_) {
     hci_ = 0;
   }
@@ -183,7 +183,7 @@ void MPIGossipParamsGPU3<Dtype>::next_cube() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::next_cube_rotate() {
+void MPIGossipParamsGPU4<Dtype>::next_cube_rotate() {
   if (hci_ > logp_) {
     hci_ = 0;
     mci_ = (mci_+1)%comm_size_;
@@ -195,7 +195,7 @@ void MPIGossipParamsGPU3<Dtype>::next_cube_rotate() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::next_diffuse() {
+void MPIGossipParamsGPU4<Dtype>::next_diffuse() {
   if (hci_ > logp_) {
     hci_ = 0;
   }
@@ -211,7 +211,7 @@ void MPIGossipParamsGPU3<Dtype>::next_diffuse() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::next_diffuse_rotate() {
+void MPIGossipParamsGPU4<Dtype>::next_diffuse_rotate() {
   if (hci_ > logp_) {
     hci_ = 0;
     mci_ = (mci_+1)%comm_size_;
@@ -229,7 +229,7 @@ void MPIGossipParamsGPU3<Dtype>::next_diffuse_rotate() {
 }
 
 template<typename Dtype>
-MPIGossipParamsGPU3<Dtype>::MPIGossipParamsGPU3(
+MPIGossipParamsGPU4<Dtype>::MPIGossipParamsGPU4(
     shared_ptr<Solver<Dtype> > root_solver,
     const SolverParameter& param,
     int comm_threads,
@@ -382,7 +382,7 @@ MPIGossipParamsGPU3<Dtype>::MPIGossipParamsGPU3(
 }
 
 template<typename Dtype>
-MPIGossipParamsGPU3<Dtype>::~MPIGossipParamsGPU3() {
+MPIGossipParamsGPU4<Dtype>::~MPIGossipParamsGPU4() {
   for (int i = 0; i < reducers.size(); ++i) {
     reducers[i]->StopInternalThread();
     delete reducers[i];
@@ -393,7 +393,7 @@ MPIGossipParamsGPU3<Dtype>::~MPIGossipParamsGPU3() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::on_start() {
+void MPIGossipParamsGPU4<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
   // Start the gradient allreduce threads
   reducers.resize(comm_threads_);
@@ -404,7 +404,7 @@ void MPIGossipParamsGPU3<Dtype>::on_start() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::on_begin() {
+void MPIGossipParamsGPU4<Dtype>::on_begin() {
   DLOG(INFO) << "on_begin()";
   for (int i=0; i<reducers.size(); ++i) {
     stats_sample_value(&reducers[i]->stats_queue_, reducers[i]->time_in_queue_);
@@ -427,52 +427,47 @@ void MPIGossipParamsGPU3<Dtype>::on_begin() {
 
   // tell comm thread to send all data
   param_solo_.push(-1);
+  // tell comm thread to send all history
+  param_solo_.push(-2);
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::after_forward() {
+void MPIGossipParamsGPU4<Dtype>::after_forward() {
   DLOG(INFO) << "after_forward()";
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::allreduce() {
+void MPIGossipParamsGPU4<Dtype>::allreduce() {
   DLOG(INFO) << "allreduce()";
-  int ignore = param_all_.pop("waiting in allreduce");
-  CHECK_EQ(ignore, -1);
+  int task_id;
+  task_id = param_all_.pop("waiting in allreduce for data");
+  CHECK_EQ(task_id, -1);
+  task_id = param_all_.pop("waiting in allreduce for history");
+  CHECK_EQ(task_id, -2);
+
+  // average pairwise exchange
+  caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
+  caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::allreduce(int param_id) {
+void MPIGossipParamsGPU4<Dtype>::allreduce(int param_id) {
   DLOG(INFO) << "allreduce(param_id)";
 }
 
 template<typename Dtype>
-int MPIGossipParamsGPU3<Dtype>::on_apply(int param_id) {
+int MPIGossipParamsGPU4<Dtype>::on_apply(int param_id) {
   DLOG(INFO) << "on_apply(param_id)";
   return param_id;
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::on_update() {
+void MPIGossipParamsGPU4<Dtype>::on_update() {
   DLOG(INFO) << "on_update()";
-
-  // tell comm thread to send all history
-  param_solo_.push(-2);
-
-  int ignore = param_all_.pop("waiting in update");
-  CHECK_EQ(ignore, -2);
-
-  // average pairwise exchange
-  caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
-  caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
-  // must copy history back into gradient diff also
-  // in the case of adam, only the first portion is relevant
-  caffe_copy(size_, history_, diff_);
 }
 
-
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::Run() {
+void MPIGossipParamsGPU4<Dtype>::Run() {
   LOG(INFO)<< "Starting Optimization";
 
   // Run root solver on current thread
@@ -480,14 +475,14 @@ void MPIGossipParamsGPU3<Dtype>::Run() {
 }
 
 template<typename Dtype>
-void MPIGossipParamsGPU3<Dtype>::Step(int iters) {
+void MPIGossipParamsGPU4<Dtype>::Step(int iters) {
   //LOG(INFO)<< "Stepping Optimization";
 
   // Run root solver on current thread
   solver_->Step(iters);
 }
 
-INSTANTIATE_CLASS(MPIGossipParamsGPU3);
+INSTANTIATE_CLASS(MPIGossipParamsGPU4);
 
 }  // namespace caffe
 
