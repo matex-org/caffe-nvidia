@@ -35,7 +35,6 @@ inline void CaffeFreeHost(void* ptr, bool use_cuda) {
   free(ptr);
 }
 
-
 /**
  * @brief Manages memory allocation and synchronization between the host (CPU)
  *        and device (GPU).
@@ -79,6 +78,7 @@ class SyncedMemory {
     return gpu_device_;
   }
   void async_gpu_push();
+  void async_gpu_recopy();
 #endif
 
  private:

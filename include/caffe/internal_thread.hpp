@@ -37,6 +37,7 @@ class InternalThread {
   /* Implement this method in your subclass
       with the code you want your thread to run. */
   virtual void InternalThreadEntry() {}
+  virtual void InternalThreadEntry2() {}
 
   /* Should be tested when running loops to exit when requested. */
   bool must_stop();
@@ -46,6 +47,7 @@ class InternalThread {
       bool root_solver);
 
   shared_ptr<boost::thread> thread_;
+  shared_ptr<boost::thread> thread2_;
 };
 
 }  // namespace caffe

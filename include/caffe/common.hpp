@@ -191,4 +191,3 @@ class Caffe {
 }  // namespace caffe
 
 #endif  // CAFFE_COMMON_HPP_
-

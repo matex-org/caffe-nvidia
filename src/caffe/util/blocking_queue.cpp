@@ -47,7 +47,8 @@ T BlockingQueue<T>::pop(const string& log_on_wait) {
 
   while (queue_.empty()) {
     if (!log_on_wait.empty()) {
-      LOG_EVERY_N(INFO, 1000)<< log_on_wait;
+      // LOG_EVERY_N(INFO, 1000)<< log_on_wait;
+      LOG_EVERY_N(INFO, 500)<< log_on_wait;
     }
     sync_->condition_.wait(lock);
   }
@@ -88,6 +89,8 @@ size_t BlockingQueue<T>::size() const {
 
 template class BlockingQueue<Batch<float>*>;
 template class BlockingQueue<Batch<double>*>;
+template class BlockingQueue<PopBatch<float>*>;
+template class BlockingQueue<PopBatch<double>*>;
 // template class BlockingQueue<Datum*>;
 template class BlockingQueue<string*>;
 template class BlockingQueue<shared_ptr<DataReader::QueuePair> >;

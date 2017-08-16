@@ -12,6 +12,7 @@
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/blocking_queue.hpp"
+#include "caffe/util/blocking_deque.hpp"
 #ifdef USE_DEEPMEM
 #include <cstring>
 #endif
@@ -34,6 +35,10 @@ class Batch {
 #endif
   // stored random numbers for this batch
   Blob<int> random_vec_;
+  // boost::atomic<volatile bool> pushed_to_gpu_;
+  bool dirty;
+  std::size_t count, shuffle_count;
+  bool full_reuse, shuffled;
 };
 
 //Pop Batch strucutre is like a batch but includes a pointer to dirty structure
@@ -42,6 +47,7 @@ struct PopBatch
 {
   Batch<Dtype>* batch;
   volatile bool * dirty;
+  // boost::atomic<volatile bool> * pushed_to_gpu;
 };
 
 template <typename Dtype>
@@ -49,6 +55,7 @@ class Cache
 {
   public:
   volatile bool * dirty; //Tells if cache position can be written over
+  // boost::atomic<volatile bool> * pushed_to_gpu; //Tells if cache position can been pushed to gpu
   class Cache * next; //The cache above me
   class Cache * prev; //The cache below me
   string disk_location; //File location for disk caching
@@ -69,10 +76,12 @@ class Cache
   BasePrefetchingDataLayer<Dtype> * data_layer;
 
   //Inits Cache: ptr is the batch buffer memory, pt2 is the dirty bit memory, thread_safe tells if cache is on prefetch
-  virtual void create( void * ptr, bool * ptr2, bool thread_safe ) { };
+  // virtual void create( void * ptr, bool * ptr2, bool thread_safe ) { };
+  virtual void create( void * ptr, bool * ptr2
+        , boost::atomic<volatile bool> * ptr3, bool thread_safe ) { };
   virtual bool empty() { return false; };
   //Pops a batch from the cache -> includes ptr to dirty structure
-  virtual PopBatch<Dtype> pop() { PopBatch<Dtype> nothing; return nothing; };
+  virtual PopBatch<Dtype>* pop() { PopBatch<Dtype>* nothing; return nothing; };
   virtual void shuffle (){}
   //Fills data from data_layer ptr -> in_cach
   virtual void fill(bool in_cache) {};
@@ -93,11 +102,12 @@ class MemoryCache : public Cache <Dtype>
   BlockingQueue<Batch<Dtype>*> cache_full;
 
   //Swaps image in batch1 at batchPos1 with image in batch2 at batchPos2
-  void shuffle_cache(Batch<Dtype>* batch1, int batchPos1, Batch<Dtype>*  batch2, int batchPos2);
+  static void shuffle_cache(Batch<Dtype>* batch1, int batchPos1, Batch<Dtype>*  batch2, int batchPos2);
 
-  virtual void create( void * ptr, bool * ptr2,bool thread_safe );
+  virtual void create( void * ptr, bool * ptr2
+          , boost::atomic<volatile bool> * ptr3, bool thread_safe );
   virtual bool empty();
-  virtual PopBatch<Dtype> pop();
+  virtual PopBatch<Dtype>* pop();
   virtual void shuffle ();
   virtual void fill(bool in_cache);
   virtual void refill(Cache<Dtype> * next_cache);
@@ -118,9 +128,10 @@ class DiskCache : public Cache <Dtype>
   Batch<Dtype> * cache_read_buffer;
   unsigned int current_offset;
   void shuffle_cache(int batch1, int batchPos1, int  batch2, int batchPos2, int image_count, int data_count, int label_count);
-  virtual void create( void * ptr, bool * ptr2, bool thread_safe);
+  virtual void create( void * ptr, bool * ptr2
+          , boost::atomic<volatile bool> * ptr3, bool thread_safe);
   virtual bool empty();
-  virtual PopBatch<Dtype> pop();
+  virtual PopBatch<Dtype>* pop();
   virtual void fill(bool in_cache);
   virtual void shuffle ();
   virtual void refill(Cache<Dtype> * next_cache);

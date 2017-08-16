@@ -6,6 +6,7 @@
 #include <iostream>
 #include <fstream>
 #include "caffe/util/cache.hpp"
+#include <boost/atomic.hpp>
 #endif
 
 #include "caffe/blob.hpp"
@@ -14,6 +15,7 @@
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/blocking_queue.hpp"
+#include "caffe/util/blocking_deque.hpp"
 
 namespace caffe {
 
@@ -80,7 +82,7 @@ class BasePrefetchingDataLayer :
       const vector<Blob<Dtype>*>& top);
 
   // Prefetches batches (asynchronously if to GPU memory)
-  static const int PREFETCH_COUNT = 3;
+  static const int PREFETCH_COUNT = 1;
 #ifdef USE_DEEPMEM
   virtual void Pass_Value_To_Layer(Dtype value, unsigned int position) {
     //LOG(INFO) << "Base Pass";
@@ -88,12 +90,15 @@ class BasePrefetchingDataLayer :
     historical_accuracy_.push_back(value);
   }
   int cache_size_;
+  virtual void shuffle();
 #endif
 
  protected:
 #ifdef USE_DEEPMEM
   bool prefetch;
   void refill_cache(int current_cache);
+  bool cache_shuffle;
+  bool shuffle_batches;
 #endif
   virtual void InternalThreadEntry();
 // #ifdef USE_DEEPMEM
@@ -113,6 +118,11 @@ class BasePrefetchingDataLayer :
   Batch<Dtype> prefetch_[PREFETCH_COUNT];
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
+  // BlockingDeque<Batch<Dtype>*> prefetch_full_;
+  // BlockingQueue<Batch<Dtype>*> prefetch_reuse_;
+  std::queue<Batch<Dtype>*> prefetch_shuffle_;
+  // std::list<Batch<Dtype>*> prefetch_shuffle_;
+  // BlockingQueue<Batch<Dtype>*> prefetch_shuffle_;
 
   Blob<Dtype> transformed_data_;
 
@@ -120,11 +130,8 @@ class BasePrefetchingDataLayer :
   Cache<Dtype> ** caches_;
 #ifndef CPU_ONLY
   // For GPU feed/stream
-  BlockingQueue<Batch<Dtype>*> l0cache_free_;
-  BlockingQueue<Batch<Dtype>*> l0cache_full_;
-  // BlockingQueue<PopBatch<Dtype>*> l0cache_full_;
-  std::queue<volatile bool*> dirtybit_;
-  // BlockingQueue<PopBatch<Dtype>*> l0cache_full_;
+  BlockingQueue<PopBatch<Dtype>*> l0cache_free_;
+  BlockingQueue<PopBatch<Dtype>*> l0cache_full2_;
 #endif
   vector<Dtype> historical_accuracy_;
 

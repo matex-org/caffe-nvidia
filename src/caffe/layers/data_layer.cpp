@@ -191,12 +191,16 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
                                   &(reader_.free())));
       }
   }
+  batch->count = 10;
+  // batch->full_reuse = false;
+  batch->full_reuse = true;
   timer.Stop();
 
   // Need to make sure we have completed all work before returning or
   // completing timimg
   pool_->waitWorkComplete();
   batch_timer.Stop();
+  // batch->pushed_to_gpu_ = false;
 
   DLOG(INFO) << "Prefetch batch: " << batch_timer.MilliSeconds() << " ms.";
   DLOG(INFO) << "     Read time: " << read_time / 1000 << " ms.";
