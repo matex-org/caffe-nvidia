@@ -71,6 +71,7 @@ DEFINE_bool(rotate, true, "for MPIGossipParamsGPU, rotate comm partner");
 DEFINE_bool(batchwise, true, "for MPIGossipParamsGPU, update pair each batch (true) or layer (false)");
 DEFINE_string(mpi, "MPI_THREAD_SINGLE", "MPI threading level");
 DEFINE_bool(step_mpi, false, "divide stepsize by MPI comm size");
+DEFINE_bool(max_iter_mpi, false, "divide max_iter by MPI comm size");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -262,6 +263,22 @@ int train() {
       if (solver_param.has_stepsize()) {
         int old = solver_param.stepsize();
         LOG(INFO) << "stepsize remained: " << old;
+      }
+    }
+    if (FLAGS_max_iter_mpi) {
+      if (solver_param.has_max_iter()) {
+        int old = solver_param.max_iter();
+        int div = caffe::mpi::comm_size();
+        solver_param.set_max_iter(old/div);
+        CHECK_EQ(solver_param.max_iter(), old/div);
+        LOG(INFO) << "max_iter changed: " << old << " / " << div
+          << " = " << old/div;
+      }
+    }
+    else {
+      if (solver_param.has_max_iter()) {
+        int old = solver_param.max_iter();
+        LOG(INFO) << "max_iter remained: " << old;
       }
     }
   }
