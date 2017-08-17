@@ -96,7 +96,7 @@ class MPIGossipParamsGPU3<Dtype>::Reducer : public InternalThread {
                 sync_->size_, sync_->recv_pair_, 1234, comm);
             caffe::mpi::isend(data_requests[1], sync_->data_,
                 sync_->size_, sync_->send_pair_, 1234, comm);
-#if 1
+#if 0
             while (!caffe::mpi::testall(data_requests)) {
               pthread_yield();
               nanosleep(&delayspec, NULL); /* back off */
@@ -119,7 +119,7 @@ class MPIGossipParamsGPU3<Dtype>::Reducer : public InternalThread {
                 sync_->size_, sync_->recv_pair_, 2345, comm);
             caffe::mpi::isend(history_requests[1], sync_->history_,
                 sync_->size_, sync_->send_pair_, 2345, comm);
-#if 1
+#if 0
             while (!caffe::mpi::testall(history_requests)) {
               pthread_yield();
               nanosleep(&delayspec, NULL); /* back off */

@@ -70,6 +70,7 @@ class MPIGossipParamsGPU4 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   Dtype *history_all_;
   size_t history_size_;
   int comm_threads_;
+  vector<cudaStream_t> comm_streams_;
   bool cube_;
   bool rotate_;
 

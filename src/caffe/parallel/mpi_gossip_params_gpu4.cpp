@@ -96,7 +96,7 @@ class MPIGossipParamsGPU4<Dtype>::Reducer : public InternalThread {
                 sync_->size_, sync_->recv_pair_, 1234, comm);
             caffe::mpi::isend(data_requests[1], sync_->data_,
                 sync_->size_, sync_->send_pair_, 1234, comm);
-#if 1
+#if 0
             while (!caffe::mpi::testall(data_requests)) {
               pthread_yield();
               nanosleep(&delayspec, NULL); /* back off */
@@ -119,7 +119,7 @@ class MPIGossipParamsGPU4<Dtype>::Reducer : public InternalThread {
                 sync_->size_, sync_->recv_pair_, 2345, comm);
             caffe::mpi::isend(history_requests[1], sync_->history_,
                 sync_->size_, sync_->send_pair_, 2345, comm);
-#if 1
+#if 0
             while (!caffe::mpi::testall(history_requests)) {
               pthread_yield();
               nanosleep(&delayspec, NULL); /* back off */
@@ -387,6 +387,9 @@ MPIGossipParamsGPU4<Dtype>::~MPIGossipParamsGPU4() {
     reducers[i]->StopInternalThread();
     delete reducers[i];
   }
+  for (int i = 0; i < comm_streams_.size(); ++i) {
+    cudaStreamDestroy(comm_streams_[i]);
+  }
   GPUMemory::deallocate(data_all_, buffer_device_, stream_);
   GPUMemory::deallocate(history_, buffer_device_, stream_);
   GPUMemory::deallocate(history_all_, buffer_device_, stream_);
@@ -396,6 +399,11 @@ template<typename Dtype>
 void MPIGossipParamsGPU4<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
   // Start the gradient allreduce threads
+  comm_streams_.resize(comm_threads_);
+  for (int i = 0; i < comm_threads_; ++i) {
+    CUDA_CHECK(cudaStreamCreateWithFlags(&comm_streams_[i],
+          cudaStreamNonBlocking));
+  }
   reducers.resize(comm_threads_);
   for (int i = 0; i < comm_threads_; ++i) {
     reducers[i] = new Reducer(this, i);
@@ -446,8 +454,9 @@ void MPIGossipParamsGPU4<Dtype>::allreduce() {
   CHECK_EQ(task_id, -2);
 
   // average pairwise exchange
-  caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
-  caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
+  caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_, comm_streams_[0]);
+  caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_, comm_streams_[0]);
+  CUDA_CHECK(cudaStreamSynchronize(comm_streams_[0]));
 }
 
 template<typename Dtype>

@@ -355,6 +355,7 @@ template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_update() {
   DLOG(INFO) << "on_update()";
 #if EXCHANGE_HISTORY_ON_UPDATE
+  timer_.Start();
   // exchange history
   {
       MPI_Comm comm = comms_[mci_];
@@ -370,6 +371,7 @@ void MPIGossipParamsGPU2<Dtype>::on_update() {
     // in the case of adam, only the first portion is relevant
     caffe_copy(size_, history_, diff_);
   }
+  timer_.Stop();
 #endif
 }
 
