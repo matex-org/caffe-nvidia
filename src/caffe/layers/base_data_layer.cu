@@ -17,7 +17,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   volatile bool * dirty;
   // volatile bool *dirtybit;
   PopBatch<Dtype> *p_batch;
-  DLOG(INFO) << "FGPU Call DEEPMEM";
+  // DLOG(INFO) << "FGPU Call DEEPMEM";
   if(this->cache_size_)
   {
     //Do we handle the refill on l1 cache?
@@ -87,19 +87,19 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   }
   //Use the orginal code if caches are turned off
   batch->count -= 1;
-  // batch->full_reuse = false;
-  if(this->cache_size_ == 0 || this->caches_[0]->size == 0){
-    if(batch->count > 0) {
+  // if(this->cache_size_ == 0 || this->caches_[0]->size == 0){
+  //   if(batch->count > 0) {
       // prefetch_reuse_.push(batch);
-      prefetch_full_.push(batch);
-    } else if(batch->shuffle_count > 0 && shuffle_batches == true) {
+  //     LOG(INFO) << "Batch Reuse Count: " << batch->count;
+  //     prefetch_full_.push(batch);
+    // } else if(batch->shuffle_count > 0 && shuffle_batches == true) {
       // non-blocking queue
-      prefetch_shuffle_.push(batch);
-    } else {
-      batch->full_reuse = true;
+    //  prefetch_shuffle_.push(batch);
+  //   } else {
+      // batch->full_reuse = true;
       prefetch_free_.push(batch);
-    }
-  }
+   //  }
+  // }
 #else
   prefetch_free_.push(batch);
 #endif

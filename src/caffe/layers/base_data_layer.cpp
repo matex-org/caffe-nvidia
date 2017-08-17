@@ -159,7 +159,7 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
 #endif
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
     // prefetch_[i].count = 10;
-    prefetch_[i].count = 0;
+    prefetch_[i].count = 10;
     prefetch_[i].shuffle_count = 10;
     prefetch_[i].dirty = true;
     prefetch_[i].full_reuse = true;
@@ -300,7 +300,6 @@ DLOG(INFO) << "InternalThrdEnt";
             b->data_.data()->async_gpu_recopy();
             if(this->output_labels_)
               b->label_.data()->async_gpu_recopy();
-          // check if cudaEvent is already created or not
             b->shuffled = false;
 #endif
             prefetch_full_.push(b);
@@ -309,16 +308,19 @@ DLOG(INFO) << "InternalThrdEnt";
           }
         }
         // else
-        {
-          if(prefetch_free_.size() > 0) {
-            reuse_count = prefetch_free_.peek()->count;
-            f_reuse = prefetch_free_.peek()->full_reuse;
-          } else {// if ( prefetch_full_.size() > 0) {
-            reuse_count = prefetch_full_.peek()->count;
-            f_reuse = prefetch_full_.peek()->full_reuse;
-          }
+        // {
+        //  if(prefetch_free_.size() > 0) {
+        //    reuse_count = prefetch_free_.peek("DEEPMEMCACHE DataLayer Free Queue Peek Empty")->count;
+        //    f_reuse = prefetch_free_.peek("DEEPMEMCACHE DataLayer Free Queue Peek Empty")->full_reuse;
+            // DLOG(INFO) << "Prefetch Free: reuseCount " << reuse_count << " , full_reuse:" << f_reuse;
+
+          // } else {// if ( prefetch_full_.size() > 0) {
+          //   reuse_count = prefetch_full_.peek("DEEPMEMCACHE DataLayer Full Queue Peek Empty")->count;
+          //   f_reuse = prefetch_full_.peek("DEEPMEMCACHE DataLayer Full Queue Peek Empty")->full_reuse;
+            // DLOG(INFO) << "Prefetch Full: reuseCount " << reuse_count << " , full_reuse:" << f_reuse;
+          // }
           // bool dirty = prefetch_free_.peek()->dirty;
-          if((reuse_count == 0 || reuse_count == 10) && (f_reuse)) {
+          /// if((reuse_count == 0 || reuse_count == 10)) {// && (f_reuse)) {
             batch = prefetch_free_.pop("DEEPMEMCACHE DataLayer Free Queue Empty");
             load_batch(batch);
 #ifndef CPU_ONLY
@@ -331,15 +333,18 @@ DLOG(INFO) << "InternalThrdEnt";
               // CUDA_CHECK(cudaStreamCreateWithFlags(&stream,cudaStreamNonBlocking));
               CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
               CUDA_CHECK(cudaStreamSynchronize(stream));
+              prefetch_full_.push(batch);
 #endif
             }
-          }
-          else {
-            // Batch<Dtype>* batch = prefetch_reuse_.pop("Reuse Queue");
-            batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty");
-          }
-        }
-        prefetch_full_.push(batch);
+          //}
+          //} else {
+          //  if(prefetch_full_.size() > 0) {
+          //    batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty");
+          //    prefetch_full_.push(batch);
+           // }
+        //  }
+        // }
+        // prefetch_full_.push(batch);
       }
     }
   } catch (boost::thread_interrupted&) {

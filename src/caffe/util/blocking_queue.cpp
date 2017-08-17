@@ -48,7 +48,7 @@ T BlockingQueue<T>::pop(const string& log_on_wait) {
   while (queue_.empty()) {
     if (!log_on_wait.empty()) {
       // LOG_EVERY_N(INFO, 1000)<< log_on_wait;
-      LOG_EVERY_N(INFO, 500)<< log_on_wait;
+      LOG_EVERY_N(INFO, 1)<< log_on_wait;
     }
     sync_->condition_.wait(lock);
   }
@@ -70,11 +70,25 @@ bool BlockingQueue<T>::try_peek(T* t) {
   return true;
 }
 
+// template<typename T>
+// T BlockingQueue<T>::peek() {
+//   boost::mutex::scoped_lock lock(sync_->mutex_);
+//
+//   while (queue_.empty()) {
+//     sync_->condition_.wait(lock);
+//   }
+//
+//   return queue_.front();
+// }
+
 template<typename T>
-T BlockingQueue<T>::peek() {
+T BlockingQueue<T>::peek(const string& log_on_wait) {
   boost::mutex::scoped_lock lock(sync_->mutex_);
 
   while (queue_.empty()) {
+    if (!log_on_wait.empty()) {
+      LOG_EVERY_N(INFO, 1) << log_on_wait;
+    }
     sync_->condition_.wait(lock);
   }
 

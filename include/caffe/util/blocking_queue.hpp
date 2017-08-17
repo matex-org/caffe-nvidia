@@ -22,7 +22,9 @@ class BlockingQueue {
   bool try_peek(T* t);
 
   // Return element without removing it
-  T peek();
+  // T peek();
+
+  T peek(const string& log_on_wait = "");
 
   size_t size() const;
 

@@ -192,8 +192,8 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       }
   }
   batch->count = 10;
-  // batch->full_reuse = false;
-  batch->full_reuse = true;
+  batch->full_reuse = false;
+  // batch->full_reuse = true;
   timer.Stop();
 
   // Need to make sure we have completed all work before returning or
