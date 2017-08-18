@@ -383,6 +383,8 @@ void MPIGossipParamsGPU2<Dtype>::on_update() {
 
   stats_sample_value(&stats_comm_, time_comm_);
   stats_sample_value(&stats_comp_, time_comp_);
+  LOG_EVERY_N(INFO, 20) << "time comm sample " << time_comm_;
+  LOG_EVERY_N(INFO, 20) << "time comp sample " << time_comp_;
 }
 
 template<typename Dtype>
