@@ -39,6 +39,7 @@ class BaseDataLayer : public Layer<Dtype> {
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {}
   virtual void DataShuffleBegin() {}
+  virtual bool DataShuffleTest() { return true; }
   virtual void DataShuffleEnd() {}
 
  protected:

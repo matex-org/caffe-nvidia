@@ -10,6 +10,7 @@
 #include "caffe/layer.hpp"
 #include "caffe/layers/base_data_layer.hpp"
 #include "caffe/mpi.hpp"
+#include "caffe/parallel/stats.h"
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/db.hpp"
 
@@ -30,6 +31,7 @@ class ShufflePnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual inline int MinTopBlobs() const { return 1; }
   virtual inline int MaxTopBlobs() const { return 2; }
   virtual void DataShuffleBegin();
+  virtual bool DataShuffleTest();
   virtual void DataShuffleEnd();
 
  protected:
@@ -51,6 +53,10 @@ class ShufflePnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
   int *shuffle_label_send_;
   int *shuffle_label_recv_;
   vector<MPI_Request> requests_;
+  double time_comm_;
+  double time_memcpy_;
+  stats_t stats_comm_;
+  stats_t stats_memcpy_;
   int dest_;
   int source_;
   shared_ptr<boost::mutex> row_mutex_;

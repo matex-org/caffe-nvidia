@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "caffe/mpi.hpp"
+#include "caffe/parallel/stats.h"
 #include "caffe/solver.hpp"
 #include "caffe/util/format.hpp"
 #include "caffe/util/hdf5.hpp"
@@ -11,6 +12,8 @@
 #include "caffe/util/upgrade_proto.hpp"
 
 namespace caffe {
+
+static stats_t stats_pers_;
 
 template<typename Dtype>
 void Solver<Dtype>::DataShuffleBegin() {
@@ -29,6 +32,16 @@ void Solver<Dtype>::DataShuffleBegin() {
   if (NULL != data_layer_) {
     data_layer_->DataShuffleBegin();
   }
+}
+
+template<typename Dtype>
+bool Solver<Dtype>::DataShuffleTest() {
+  DLOG(INFO) << "SOLVER SHUFFLE TEST";
+  bool retval = true;
+  if (NULL != data_layer_) {
+    retval = data_layer_->DataShuffleTest();
+  }
+  return retval;
 }
 
 template<typename Dtype>
@@ -77,6 +90,7 @@ Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
 
 template <typename Dtype>
 void Solver<Dtype>::Init(const SolverParameter& param) {
+  stats_clear(&stats_pers_);
   CHECK(Caffe::root_solver() || root_solver_)
       << "root_solver_ needs to be set for all non-root solvers";
   LOG_IF(INFO, Caffe::root_solver()) << "Initializing solver from parameters: "
@@ -276,9 +290,16 @@ void Solver<Dtype>::Step(int iters) {
     if (display) {
       float lapse = iteration_timer_.Seconds();
       float per_s = (iter_ - iterations_last_) / (lapse ? lapse : 1);
+      if (0 != iter_) {
+        stats_sample_value(&stats_pers_, per_s);
+      }
       LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
           << " (" << per_s << " iter/s, " << lapse << "s/"
-          << param_.display() <<" iter), loss = " << smoothed_loss_;
+          << param_.display() <<" iter), loss = " << smoothed_loss_
+          << " iter/s " << stats_pers_._mean
+          << " +- " << stats_stddev(&stats_pers_)
+          << " min " << stats_pers_._min
+          << " max " << stats_pers_._max;
       iteration_timer_.Start();
       iterations_last_ = iter_;
       const vector<Blob<Dtype>*>& result = net_->output_blobs();

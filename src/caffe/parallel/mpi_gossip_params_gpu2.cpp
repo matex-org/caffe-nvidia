@@ -18,12 +18,7 @@
 #include "caffe/util/benchmark.hpp"
 #include "caffe/util/gpu_memory.hpp"
 
-#define EXCHANGE_HISTORY_ON_UPDATE 1
-
 namespace caffe {
-
-static CPUTimer timer_;
-static stats_t stats_comm_;
 
 template<typename Dtype>
 static void apply_buffers(const vector<shared_ptr<Blob<Dtype> > >& blobs,
@@ -153,9 +148,12 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
     sgdsolver_(),
     adamsolver_(),
     params_(root_solver->net()->learnable_params()),
-#ifdef USE_MPI
     comms_(),
-#endif
+    requests_data_(),
+    time_comm_(),
+    time_comp_(),
+    stats_comm_(),
+    stats_comp_(),
     data_all_(),
     history_(),
     history_all_(),
@@ -163,12 +161,12 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
     cube_(cube),
     rotate_(rotate)
 {
-#ifdef USE_MPI
   int count = 0;
   int node_rank = 0;
   int node_size = 0;
 
   stats_clear(&stats_comm_);
+  stats_clear(&stats_comp_);
 
   CUDA_CHECK(cudaGetDeviceCount(&count));
 
@@ -259,9 +257,8 @@ MPIGossipParamsGPU2<Dtype>::MPIGossipParamsGPU2(
 
   apply_buffers(sgdsolver_->history(), history_, history_size_, replace_gpu);
 
-#else
-  NO_MPI;
-#endif
+  LOG(INFO) << "buffer size_ " << size_*sizeof(Dtype);
+  LOG(INFO) << "buffer history_size_ " << history_size_*sizeof(Dtype);
 }
 
 template<typename Dtype>
@@ -274,88 +271,96 @@ MPIGossipParamsGPU2<Dtype>::~MPIGossipParamsGPU2() {
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_start() {
   DLOG(INFO) << "on_start()";
-  timer_.Start();
 }
 
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_begin() {
   DLOG(INFO) << "on_begin()";
-  stats_sample_value(&stats_comm_, timer_.MilliSeconds());
-  LOG_EVERY_N(INFO, 20) << "time comm " << stats_comm_._mean;
+  CPUTimer timer;
+
+  LOG_EVERY_N(INFO, 20) << "time comm " << stats_comm_._mean
+    << " += " << stats_stddev(&stats_comm_)
+    << " min " << stats_comm_._min
+    << " max " << stats_comm_._max;
+  LOG_EVERY_N(INFO, 20) << "time comp " << stats_comp_._mean
+    << " += " << stats_stddev(&stats_comp_)
+    << " min " << stats_comp_._min
+    << " max " << stats_comp_._max;
+
   solver_->DataShuffleBegin();
-}
-
-template<typename Dtype>
-void MPIGossipParamsGPU2<Dtype>::after_forward() {
-  DLOG(INFO) << "after_forward()";
-  solver_->DataShuffleEnd();
-}
-
-template<typename Dtype>
-void MPIGossipParamsGPU2<Dtype>::allreduce() {
-  DLOG(INFO) << "allreduce()";
-  timer_.Start();
-#ifdef USE_MPI
 
   // select next exchange partners
   next();
 
   // exchange data
+  timer.Start();
   {
       MPI_Comm comm = comms_[mci_];
-      vector<MPI_Request> requests(2);
-      caffe::mpi::irecv(requests[0], data_all_, size_, recv_pair_, 1234, comm);
-      caffe::mpi::isend(requests[1], data_,     size_, send_pair_, 1234, comm);
-      caffe::mpi::waitall(requests);
+      requests_data_.assign(2, MPI_REQUEST_NULL);
+      caffe::mpi::irecv(requests_data_[0], data_all_, size_, recv_pair_, 1234, comm);
+      caffe::mpi::isend(requests_data_[1], data_,     size_, send_pair_, 1234, comm);
   }
+  timer.Stop();
+  time_comm_ = timer.MilliSeconds();
 
-#if EXCHANGE_HISTORY_ON_UPDATE
-#else
-  // exchange history
-  {
-      MPI_Comm comm = comms_[mci_];
-      vector<MPI_Request> requests(2);
-      caffe::mpi::irecv(requests[0], history_all_, history_size_, recv_pair_, 2345, comm);
-      caffe::mpi::isend(requests[1], history_,     history_size_, send_pair_, 2345, comm);
-      caffe::mpi::waitall(requests);
-  }
-#endif
+  make_progress();
+}
 
-  {
-    // average pairwise exchange
-    caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
-  }
+template<typename Dtype>
+void MPIGossipParamsGPU2<Dtype>::make_progress() {
+  CPUTimer timer;
 
-#if EXCHANGE_HISTORY_ON_UPDATE
-#else
-  {
-    // average pairwise exchange
-    caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
-  }
-#endif
+  solver_->DataShuffleTest();
 
-  timer_.Stop();
-#else
-  NO_MPI;
-#endif
+  timer.Start();
+  caffe::mpi::testall(requests_data_);
+  timer.Stop();
+  time_comm_ += timer.MilliSeconds();
+}
+
+template<typename Dtype>
+void MPIGossipParamsGPU2<Dtype>::after_forward() {
+  DLOG(INFO) << "after_forward()";
+  make_progress();
 }
 
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::allreduce(int param_id) {
   DLOG(INFO) << "allreduce(param_id)";
+  make_progress();
+}
+
+template<typename Dtype>
+void MPIGossipParamsGPU2<Dtype>::allreduce() {
+  DLOG(INFO) << "allreduce()";
+  make_progress();
 }
 
 template<typename Dtype>
 int MPIGossipParamsGPU2<Dtype>::on_apply(int param_id) {
   DLOG(INFO) << "on_apply(param_id)";
+  make_progress();
   return param_id;
 }
 
 template<typename Dtype>
 void MPIGossipParamsGPU2<Dtype>::on_update() {
   DLOG(INFO) << "on_update()";
-#if EXCHANGE_HISTORY_ON_UPDATE
-  timer_.Start();
+  CPUTimer timer;
+
+  solver_->DataShuffleEnd();
+
+  timer.Start();
+  caffe::mpi::waitall(requests_data_);
+  timer.Stop();
+  time_comm_ += timer.MilliSeconds();
+
+  timer.Start();
+  caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
+  timer.Stop();
+  time_comp_ = timer.MilliSeconds();
+
+  timer.Start();
   // exchange history
   {
       MPI_Comm comm = comms_[mci_];
@@ -364,15 +369,20 @@ void MPIGossipParamsGPU2<Dtype>::on_update() {
       caffe::mpi::isend(requests[1], history_,     history_size_, send_pair_, 2345, comm);
       caffe::mpi::waitall(requests);
   }
-  {
-    // average pairwise exchange
-    caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
-    // must copy history back into gradient diff also
-    // in the case of adam, only the first portion is relevant
-    caffe_copy(size_, history_, diff_);
-  }
-  timer_.Stop();
-#endif
+  timer.Stop();
+  time_comm_ += timer.MilliSeconds();
+
+  timer.Start();
+  // average pairwise exchange
+  caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
+  // must copy history back into gradient diff also
+  // in the case of adam, only the first portion is relevant
+  caffe_copy(size_, history_, diff_);
+  timer.Stop();
+  time_comp_ += timer.MilliSeconds();
+
+  stats_sample_value(&stats_comm_, time_comm_);
+  stats_sample_value(&stats_comp_, time_comp_);
 }
 
 template<typename Dtype>

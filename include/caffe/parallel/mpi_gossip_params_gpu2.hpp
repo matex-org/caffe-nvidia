@@ -8,6 +8,7 @@
 #include "caffe/common.hpp"
 #include "caffe/mpi.hpp"
 #include "caffe/parallel.hpp"
+#include "caffe/parallel/stats.h"
 #include "caffe/solver.hpp"
 #include "caffe/sgd_solvers.hpp"
 
@@ -43,6 +44,8 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   void next_diffuse();
   void next_diffuse_rotate();
 
+  void make_progress();
+
   int comm_rank_orig_;
   int comm_rank_;
   int comm_size_;
@@ -55,9 +58,12 @@ class MPIGossipParamsGPU2 : public GPUParams<Dtype>, public Solver<Dtype>::Callb
   shared_ptr<SGDSolver<Dtype> > sgdsolver_;
   shared_ptr<AdamSolver<Dtype> > adamsolver_;
   const vector<Blob<Dtype>*>& params_;
-#ifdef USE_MPI
   vector<MPI_Comm> comms_;
-#endif
+  vector<MPI_Request> requests_data_;
+  double time_comm_;
+  double time_comp_;
+  stats_t stats_comm_;
+  stats_t stats_comp_;
   Dtype *data_all_;
   Dtype *history_;
   Dtype *history_all_;

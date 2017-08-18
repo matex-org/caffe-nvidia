@@ -31,6 +31,10 @@ ShufflePnetCDFAllDataLayer<Dtype>::ShufflePnetCDFAllDataLayer(const LayerParamet
     shuffle_label_send_(NULL),
     shuffle_label_recv_(NULL),
     requests_(4, MPI_REQUEST_NULL),
+    time_comm_(0.0),
+    time_memcpy_(0.0),
+    stats_comm_(),
+    stats_memcpy_(),
     dest_(-1),
     source_(-1),
     row_mutex_(),
@@ -49,6 +53,8 @@ ShufflePnetCDFAllDataLayer<Dtype>::ShufflePnetCDFAllDataLayer(const LayerParamet
   if (source_ >= comm_size_) {
     source_ = 0;
   }
+  stats_clear(&stats_comm_);
+  stats_clear(&stats_memcpy_);
 }
 
 template <typename Dtype>
@@ -499,15 +505,18 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleBegin() {
           this->label_.get() + row, sizeof(int));
     }
   }
+  timer.Stop();
+  time_memcpy_ = timer.MilliSeconds();
 
 #define TAG_DATA  6543
 #define TAG_LABEL 6544
   if (this->output_labels_) {
-    requests_.assign(2, MPI_REQUEST_NULL);
-  }
-  else {
     requests_.assign(4, MPI_REQUEST_NULL);
   }
+  else {
+    requests_.assign(2, MPI_REQUEST_NULL);
+  }
+  timer.Start();
   caffe::mpi::irecv(requests_[0], shuffle_data_recv_,
       datum_size*batch_size, source_, TAG_DATA);
   caffe::mpi::isend(requests_[1], shuffle_data_send_,
@@ -519,7 +528,19 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleBegin() {
         batch_size, dest_, TAG_LABEL);
   }
   timer.Stop();
-  DLOG(INFO) << "shuffle begin time: " << timer.MilliSeconds() << " ms.";
+  time_comm_ = timer.MilliSeconds();
+}
+
+template<typename Dtype>
+bool ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleTest() {
+  DLOG(INFO) << "PNETCDF DATA SHUFFLE TEST";
+  CPUTimer timer;
+  bool retval;
+  timer.Start();
+  retval = caffe::mpi::testall(requests_);
+  timer.Stop();
+  time_comm_ += timer.MilliSeconds();
+  return retval;
 }
 
 template<typename Dtype>
@@ -531,9 +552,11 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleEnd() {
   const int batch_size = this->layer_param_.data_param().batch_size();
 
   timer.Start();
-
   caffe::mpi::waitall(requests_);
+  timer.Stop();
+  time_comm_ += timer.MilliSeconds();
 
+  timer.Start();
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     // get a datum
     size_t row = (shuffle_row_+item_id) % this->max_row_;
@@ -546,11 +569,23 @@ void ShufflePnetCDFAllDataLayer<Dtype>::DataShuffleEnd() {
           shuffle_label_recv_ + item_id, sizeof(int));
     }
   }
+  timer.Stop();
+  time_memcpy_ += timer.MilliSeconds();
 
   shuffle_row_ = (shuffle_row_+batch_size) % this->max_row_;
 
-  timer.Stop();
-  DLOG(INFO) << "shuffle wait time: " << timer.MilliSeconds() << " ms.";
+  stats_sample_value(&stats_comm_, time_comm_);
+  stats_sample_value(&stats_memcpy_, time_memcpy_);
+  LOG_EVERY_N(INFO, 20) << "time comm shuffle " << stats_comm_._mean
+    << " +- " << stats_stddev(&stats_comm_)
+    << " min " << stats_comm_._min
+    << " max " << stats_comm_._max;
+  LOG_EVERY_N(INFO, 20) << "time memcpy shuffle " << stats_memcpy_._mean
+    << " +- " << stats_stddev(&stats_memcpy_)
+    << " min " << stats_memcpy_._min
+    << " max " << stats_memcpy_._max;
+  time_comm_ = 0.0;
+  time_memcpy_ = 0.0;
 }
 
 INSTANTIATE_CLASS(ShufflePnetCDFAllDataLayer);

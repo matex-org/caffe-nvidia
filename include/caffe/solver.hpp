@@ -133,6 +133,7 @@ class Solver {
   void DisplayOutputBlobs(const int net_id);
   void UpdateSmoothedLoss(Dtype loss, int start_iter, int average_loss);
   void DataShuffleBegin();
+  bool DataShuffleTest();
   void DataShuffleEnd();
 
   SolverParameter param_;
