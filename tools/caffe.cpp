@@ -18,7 +18,6 @@ namespace bp = boost::python;
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
-
 using caffe::Blob;
 using caffe::Caffe;
 using caffe::Net;
@@ -53,6 +52,10 @@ DEFINE_string(sighup_effect, "snapshot",
              "snapshot, stop or none.");
 DEFINE_string(par, "",
     "Optional; parallelization strategy, e.g., MPISyncGPU");
+DEFINE_int32(prefetch, 3,
+    "The number of prefetch queue to create.");
+DEFINE_int32(reuse_count, 0,
+    "The number of times a prefetch queue is reused.");
 
 // A simple registry for caffe commands.
 typedef int (*BrewFunction)();
@@ -285,7 +288,6 @@ int train() {
 }
 RegisterBrewFunction(train);
 
-
 // Test: score a model.
 int test() {
   CHECK_GT(FLAGS_model.size(), 0) << "Need a model definition to score.";
@@ -367,7 +369,6 @@ int test() {
   return 0;
 }
 RegisterBrewFunction(test);
-
 
 // Time: benchmark the execution time of a model.
 int time() {

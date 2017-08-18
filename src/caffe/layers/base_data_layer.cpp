@@ -159,10 +159,10 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
 #endif
   for (int i = 0; i < PREFETCH_COUNT; ++i) {
     // prefetch_[i].count = 10;
-    prefetch_[i].count = 10;
+    prefetch_[i].count = 3;
     prefetch_[i].shuffle_count = 10;
     prefetch_[i].dirty = true;
-    prefetch_[i].full_reuse = true;
+    prefetch_[i].full_reused = true;
   }
 
 #ifdef USE_DEEPMEM
@@ -253,11 +253,6 @@ DLOG(INFO) << "InternalThrdEnt";
         }
         DLOG(INFO) << "l0CACHE_FREE_SIZE:" << l0cache_free_.size();
 
-        // SyncedMemory::SyncedHead dataHead = l0cache_free_.peek()->batch->data_.data()->head();
-        // if(dataHead == SyncedMemory::SYNCED)
-        //   DLOG(INFO) << "GPU SYNCED ALREADY!";
-
-        // if(dataHead =! SyncedMemory::SYNCED) {
         if(!l0cache_free_.peek()->batch->dirty) {
         PopBatch<Dtype> *p_batch = l0cache_free_.pop("Cache pop");
         // *p_batch->dirty = false;
@@ -287,9 +282,7 @@ DLOG(INFO) << "InternalThrdEnt";
         }
       } else {
         // Use Default approach:
-        Batch<Dtype>* batch;
-        std::size_t reuse_count;
-        bool f_reuse;
+        Batch<Dtype>* batch; std::size_t reuse_count; bool f_reuse;
         if(prefetch_shuffle_.size() >= 2) {
           // shuffle data in shuffle_queue (non blocking queue)
           shuffle();
@@ -306,21 +299,7 @@ DLOG(INFO) << "InternalThrdEnt";
           } else {
             prefetch_shuffle_.push(b);
           }
-        }
-        // else
-        // {
-        //  if(prefetch_free_.size() > 0) {
-        //    reuse_count = prefetch_free_.peek("DEEPMEMCACHE DataLayer Free Queue Peek Empty")->count;
-        //    f_reuse = prefetch_free_.peek("DEEPMEMCACHE DataLayer Free Queue Peek Empty")->full_reuse;
-            // DLOG(INFO) << "Prefetch Free: reuseCount " << reuse_count << " , full_reuse:" << f_reuse;
-
-          // } else {// if ( prefetch_full_.size() > 0) {
-          //   reuse_count = prefetch_full_.peek("DEEPMEMCACHE DataLayer Full Queue Peek Empty")->count;
-          //   f_reuse = prefetch_full_.peek("DEEPMEMCACHE DataLayer Full Queue Peek Empty")->full_reuse;
-            // DLOG(INFO) << "Prefetch Full: reuseCount " << reuse_count << " , full_reuse:" << f_reuse;
-          // }
-          // bool dirty = prefetch_free_.peek()->dirty;
-          /// if((reuse_count == 0 || reuse_count == 10)) {// && (f_reuse)) {
+        } else {
             batch = prefetch_free_.pop("DEEPMEMCACHE DataLayer Free Queue Empty");
             load_batch(batch);
 #ifndef CPU_ONLY
@@ -336,15 +315,7 @@ DLOG(INFO) << "InternalThrdEnt";
               prefetch_full_.push(batch);
 #endif
             }
-          //}
-          //} else {
-          //  if(prefetch_full_.size() > 0) {
-          //    batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty");
-          //    prefetch_full_.push(batch);
-           // }
-        //  }
-        // }
-        // prefetch_full_.push(batch);
+        }
       }
     }
   } catch (boost::thread_interrupted&) {
@@ -443,6 +414,11 @@ INSTANTIATE_CLASS(BasePrefetchingDataLayer);
 }  // namespace caffe
 
 /*
+        // SyncedMemory::SyncedHead dataHead = l0cache_free_.peek()->batch->data_.data()->head();
+        // if(dataHead == SyncedMemory::SYNCED)
+        //   DLOG(INFO) << "GPU SYNCED ALREADY!";
+
+        // if(dataHead =! SyncedMemory::SYNCED) {
 #ifdef USE_DEEPMEM
     if(cache_size_) {
       typedef MemoryCache<Dtype> MemCacheType;

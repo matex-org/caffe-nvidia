@@ -34,7 +34,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   }
   else //Use the original unmofified code to get a batch
   {
-    batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty");
+    batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty (gpu)");
   }
 #else
   Batch<Dtype>* batch = prefetch_full_.pop("Data layer prefetch queue empty");
@@ -87,19 +87,15 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   }
   //Use the orginal code if caches are turned off
   batch->count -= 1;
-  // if(this->cache_size_ == 0 || this->caches_[0]->size == 0){
-  //   if(batch->count > 0) {
-      // prefetch_reuse_.push(batch);
-  //     LOG(INFO) << "Batch Reuse Count: " << batch->count;
-  //     prefetch_full_.push(batch);
-    // } else if(batch->shuffle_count > 0 && shuffle_batches == true) {
-      // non-blocking queue
-    //  prefetch_shuffle_.push(batch);
-  //   } else {
-      // batch->full_reuse = true;
+  if(this->cache_size_ == 0 || this->caches_[0]->size == 0){
+    if(batch->count > 0) {
+      // LOG(INFO) << "Batch Reuse Count: " << batch->count;
+      prefetch_full_.push(batch);
+    } else {
+      batch->full_reused = true;
       prefetch_free_.push(batch);
-   //  }
-  // }
+    }
+  }
 #else
   prefetch_free_.push(batch);
 #endif
@@ -109,6 +105,9 @@ INSTANTIATE_LAYER_GPU_FORWARD(BasePrefetchingDataLayer);
 
 }  // namespace caffe
 
+    // } else if(batch->shuffle_count > 0 && shuffle_batches == true) {
+      // non-blocking queue
+    //  prefetch_shuffle_.push(batch);
 // #ifndef CPU_ONLY
 //     cudaStream_t stream;
 //     if (Caffe::mode() == Caffe::GPU) {

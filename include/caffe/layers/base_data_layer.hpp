@@ -82,7 +82,7 @@ class BasePrefetchingDataLayer :
       const vector<Blob<Dtype>*>& top);
 
   // Prefetches batches (asynchronously if to GPU memory)
-  static const int PREFETCH_COUNT = 2;
+  static const int PREFETCH_COUNT = 5;
 #ifdef USE_DEEPMEM
   virtual void Pass_Value_To_Layer(Dtype value, unsigned int position) {
     //LOG(INFO) << "Base Pass";

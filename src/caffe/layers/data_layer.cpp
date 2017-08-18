@@ -191,8 +191,8 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
                                   &(reader_.free())));
       }
   }
-  batch->count = 10;
-  batch->full_reuse = false;
+  batch->count = 3;
+  batch->full_reused = false;
   // batch->full_reuse = true;
   timer.Stop();
 

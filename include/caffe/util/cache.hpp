@@ -38,7 +38,7 @@ class Batch {
   // boost::atomic<volatile bool> pushed_to_gpu_;
   bool dirty;
   std::size_t count, shuffle_count;
-  bool full_reuse, shuffled;
+  bool full_reused, shuffled;
 };
 
 //Pop Batch strucutre is like a batch but includes a pointer to dirty structure
