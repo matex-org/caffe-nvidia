@@ -294,7 +294,6 @@ void MPIGossipParamsGPU6<Dtype>::on_begin() {
     timer.Start();
     caffe_gpu_axpby(size_, Dtype(0.5), data_all_, Dtype(0.5), data_);
     caffe_gpu_axpby(history_size_, Dtype(0.5), history_all_, Dtype(0.5), history_);
-    caffe_copy(size_, history_, diff_);
     timer.Stop();
     time_comp_ = timer.MilliSeconds();
     stats_sample_value(&stats_comm_, time_comm_);

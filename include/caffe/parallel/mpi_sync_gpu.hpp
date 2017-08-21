@@ -8,6 +8,7 @@
 #include "caffe/common.hpp"
 #include "caffe/mpi.hpp"
 #include "caffe/parallel.hpp"
+#include "caffe/parallel/stats.h"
 #include "caffe/solver.hpp"
 
 namespace caffe {
@@ -37,6 +38,7 @@ class MPISyncGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
   int comm_size_;
   shared_ptr<Solver<Dtype> > solver_;
   Timer timer_;
+  stats_t stats_comm_;
 
   Dtype* cpu_ptr_;
   using Params<Dtype>::size_;

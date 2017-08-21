@@ -12,6 +12,7 @@
 #include "caffe/caffe.hpp"
 #include "caffe/mpi.hpp"
 #include "caffe/parallel/mpi_sync_gpu.hpp"
+#include "caffe/parallel/stats.h"
 
 namespace caffe {
 
@@ -25,12 +26,15 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver,
       comm_size_(),
       solver_(),
       timer_(),
+      stats_comm_(),
       cpu_ptr_()
 {
 #ifdef USE_MPI
   int count = 0;
   int node_rank = 0;
   int node_size = 0;
+
+  stats_clear(&stats_comm_);
 
   CUDA_CHECK(cudaGetDeviceCount(&count));
 
@@ -111,10 +115,15 @@ void MPISyncGPU<Dtype>::allreduce() {
   caffe::mpi::allreduce(diff_, size_, MPI_SUM, comm_);
 #endif
   double time_comm_ = timer_.MilliSeconds();
+  stats_sample_value(&stats_comm_, time_comm_);
   if (count == 20) {
     count = 0;
-    LOG(INFO) << "time comm " << time_comm_;
+    LOG(INFO) << "time comm sample " << time_comm_;
   }
+  LOG_EVERY_N(INFO, 20) << "time comm " << stats_comm_._mean
+    << " += " << stats_stddev(&stats_comm_)
+    << " min " << stats_comm_._min
+    << " max " << stats_comm_._max;
 #else
   NO_MPI;
 #endif
