@@ -410,13 +410,23 @@ void iallreduce(MPI_Request &request, double* buffer, int count, MPI_Op op, MPI_
   }
 }
 
+void bcast(std::vector<int> &buffer, int root, MPI_Comm comm) {
+  if (MPI_COMM_NULL == comm) {
+    comm = get_comm_default();
+  }
+
+  if (MPI_SUCCESS != MPI_Bcast(&buffer[0], buffer.size(), MPI_INT, root, comm)) {
+    throw std::runtime_error("MPI_Bcast vector<int> failed");
+  }
+}
+
 void bcast(float* buffer, int count, int root, MPI_Comm comm) {
   if (MPI_COMM_NULL == comm) {
     comm = get_comm_default();
   }
 
   if (MPI_SUCCESS != MPI_Bcast(buffer, count, MPI_FLOAT, root, comm)) {
-    throw std::runtime_error("MPI_Bcast failed");
+    throw std::runtime_error("MPI_Bcast float array failed");
   }
 }
 
@@ -448,7 +458,7 @@ void bcast(double* buffer, int count, int root, MPI_Comm comm) {
   }
 
   if (MPI_SUCCESS != MPI_Bcast(buffer, count, MPI_DOUBLE, root, comm)) {
-    throw std::runtime_error("MPI_Bcast failed");
+    throw std::runtime_error("MPI_Bcast double array failed");
   }
 }
 

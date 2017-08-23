@@ -64,6 +64,7 @@ bool testall(std::vector<MPI_Request> &requests);
 void waitall(std::vector<MPI_Request> &requests);
 bool test(MPI_Request &request);
 
+void bcast(std::vector<int> &buffer, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 void bcast(float* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 void bcast(double* buffer, int count, int root=0, MPI_Comm comm=MPI_COMM_NULL);
 
