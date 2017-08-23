@@ -31,6 +31,7 @@ class SGDSolver : public Solver<Dtype> {
  public:
   void PreSolve();
   virtual Dtype GetLearningRate();
+  virtual Dtype GetMomentum();
   virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);

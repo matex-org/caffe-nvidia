@@ -83,6 +83,7 @@ class Solver {
   // Invoked at specific points during an iteration
   class Callback {
    public:
+    virtual void on_forward(int param_id) {}
     virtual void allreduce(int param_id) {}
     virtual void syncCommStream() {}
 
@@ -116,6 +117,7 @@ class Solver {
  public:
   // Make and apply the update value for the current iteration.
   virtual Dtype GetLearningRate() = 0;
+  virtual Dtype GetMomentum() = 0;
   virtual void ApplyUpdate() = 0;
   virtual void Normalize(int param_id) = 0;
   virtual void Regularize(int param_id) = 0;

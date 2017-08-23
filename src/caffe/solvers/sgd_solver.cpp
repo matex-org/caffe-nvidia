@@ -67,6 +67,22 @@ Dtype SGDSolver<Dtype>::GetLearningRate() {
 }
 
 template <typename Dtype>
+Dtype SGDSolver<Dtype>::GetMomentum() {
+  Dtype rate;
+  const string& momentum_policy = this->param_.momentum_policy();
+  if (momentum_policy == "fixed") {
+    rate = this->param_.momentum();
+  } else if (momentum_policy == "linear") {
+    Dtype ratio = Dtype(this->iter_) / Dtype(this->param_.max_iter());
+    rate = this->param_.momentum() * (Dtype(1.) - ratio) + 
+        this->param_.final_momentum() * ratio;;
+  } else {
+    LOG(FATAL) << "Unknown momentum policy: " << momentum_policy;
+  }
+  return rate;
+}
+
+template <typename Dtype>
 void SGDSolver<Dtype>::PreSolve() {
   // Initialize the history
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
@@ -105,9 +121,11 @@ void SGDSolver<Dtype>::ClipGradients() {
 template <typename Dtype>
 void SGDSolver<Dtype>::ApplyUpdate() {
   Dtype rate = GetLearningRate();
+  Dtype momentum = GetMomentum();
   if (Caffe::root_solver() && this->param_.display() &&
       this->iter_ % this->param_.display() == 0) {
-    LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate;
+    LOG(INFO) << "Iteration " << this->iter_ << ", lr = " << rate
+        << " momentum = " << momentum;
   }
   ClipGradients();
   //for (int param_id = 0; param_id < this->net_->learnable_params().size(); ++param_id)
@@ -226,7 +244,7 @@ template <typename Dtype>
 void SGDSolver<Dtype>::ComputeUpdateValue(int param_id, Dtype rate) {
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
   const vector<float>& net_params_lr = this->net_->params_lr();
-  Dtype momentum = this->param_.momentum();
+  Dtype momentum = GetMomentum();
   Dtype local_rate = rate * net_params_lr[param_id];
   local_rate *= scale_on_apply();
   // Compute the update to history, then copy it to the parameter diff.
