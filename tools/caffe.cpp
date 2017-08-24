@@ -279,11 +279,23 @@ int train() {
         LOG(INFO) << "max_iter changed: " << old << " / " << div
           << " = " << old/div;
       }
+      if (solver_param.has_test_interval()) {
+        int old = solver_param.test_interval();
+        int div = caffe::mpi::comm_size();
+        solver_param.set_test_interval(old/div);
+        CHECK_EQ(solver_param.test_interval(), old/div);
+        LOG(INFO) << "test_interval changed: " << old << " / " << div
+          << " = " << old/div;
+      }
     }
     else {
       if (solver_param.has_max_iter()) {
         int old = solver_param.max_iter();
         LOG(INFO) << "max_iter remained: " << old;
+      }
+      if (solver_param.has_test_interval()) {
+        int old = solver_param.test_interval();
+        LOG(INFO) << "test_interval remained: " << old;
       }
     }
   }

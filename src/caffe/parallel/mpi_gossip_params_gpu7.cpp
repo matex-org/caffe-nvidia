@@ -345,6 +345,12 @@ void MPIGossipParamsGPU7<Dtype>::make_progress() {
 }
 
 template<typename Dtype>
+void MPIGossipParamsGPU7<Dtype>::on_forward(int param_id) {
+  DLOG(INFO) << "on_forward(param_id)";
+  make_progress();
+}
+
+template<typename Dtype>
 void MPIGossipParamsGPU7<Dtype>::after_forward() {
   DLOG(INFO) << "after_forward()";
   make_progress();
