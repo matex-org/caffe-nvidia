@@ -374,12 +374,14 @@ void Solver<Dtype>::Solve(const char* resume_file) {
   // should be given, and we will just provide dummy vecs.
   int start_iter = iter_;
   Step(param_.max_iter() - iter_);
+#if 0
   // If we haven't already, save a snapshot after optimization, unless
   // overridden by setting snapshot_after_train := false
   if (param_.snapshot_after_train()
       && (!param_.snapshot() || iter_ % param_.snapshot() != 0)) {
     Snapshot();
   }
+#endif
   if (requested_early_exit_) {
     LOG(INFO) << "Optimization stopped early.";
     return;
@@ -399,9 +401,13 @@ void Solver<Dtype>::Solve(const char* resume_file) {
 
     LOG(INFO) << "Iteration " << iter_ << ", loss = " << smoothed_loss_;
   }
+#if 0
   if (param_.test_interval() && iter_ % param_.test_interval() == 0) {
     TestAll();
   }
+#else
+    TestAll();
+#endif
   LOG(INFO) << "Optimization Done.";
 }
 
