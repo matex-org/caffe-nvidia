@@ -23,6 +23,7 @@
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/parallel/mpi_sync_gpu.hpp"
 #include "caffe/parallel.hpp"
+#include "caffe/mpi.hpp"
 
 // Temporary solution for numpy < 1.7 versions: old macro, no promises.
 // You're strongly advised to upgrade to >= 1.7.
@@ -85,6 +86,10 @@ void set_mode_gpu() {
 #ifndef CPU_ONLY
   initialize_gpu_memory_scope();
 #endif
+}
+
+int node_rank() {
+   return mpi::node_rank();
 }
 
 // For convenience, check that input files can be opened, and raise an
@@ -346,6 +351,7 @@ BOOST_PYTHON_MODULE(_caffe) {
   bp::def("set_mode_cpu", &set_mode_cpu);
   bp::def("set_mode_gpu", &set_mode_gpu);
   bp::def("set_device", &Caffe::SetDevice);
+  bp::def("node_rank", &node_rank);
 
   bp::def("layer_type_list", &LayerRegistry<Dtype>::LayerTypeList);
 
@@ -449,6 +455,8 @@ BOOST_PYTHON_MODULE(_caffe) {
     .def("solve", static_cast<void (Solver<Dtype>::*)(const char*)>(
           &Solver<Dtype>::Solve), SolveOverloads())
     .def("step", &Solver<Dtype>::Step)
+    .def("first_half", &Solver<Dtype>::first_half_of_step)
+    .def("second_half", &Solver<Dtype>::second_half_of_step)
     .def("set_allreduce", &Solver<Dtype>::set_allreduce)
     .def("restore", &Solver<Dtype>::Restore)
     //.def("yy_sync", &Solver<Dtype>::yy_sync)

@@ -195,6 +195,76 @@ void Solver<Dtype>::InitTestNets() {
 }
 
 template <typename Dtype>
+void Solver<Dtype>::first_half_of_step(int iters) {
+  const int start_iter = iter_;
+  const int stop_iter = iter_ + iters;
+  int average_loss = this->param_.average_loss();
+  losses_.clear();
+  smoothed_loss_ = 0;
+  iteration_timer_.Start();
+
+  for (int i = 0; i < callbacks_.size(); ++i) {
+  callbacks_[i]->soft_barrier();
+  callbacks_[i]->on_start();
+  }
+
+  net_->SetSolver(this);
+
+  while (iter_ < stop_iter) {
+    net_->ClearParamDiffs();
+    if (param_.test_interval() && iter_ % param_.test_interval() == 0
+        && (iter_ > 0 || param_.test_initialization())) {
+      if (Caffe::root_solver()) {
+        TestAll();
+      }
+      if (requested_early_exit_) {
+       break;
+      }
+      for (int i = 0; i < callbacks_.size(); ++i) {
+        callbacks_[i]->soft_barrier();
+      }
+    }
+    const bool display = param_.display() && iter_ % param_.display() == 0;
+    net_->set_debug_info(display && param_.debug_info());
+Dtype loss = 0;
+    for (int i = 0; i < param_.iter_size(); ++i) {
+      loss += net_->ForwardBackward();
+    }
+    loss /= param_.iter_size();
+UpdateSmoothedLoss(loss, start_iter, average_loss);
+    if (display) {
+      float lapse = iteration_timer_.Seconds();
+      float per_s = (iter_ - iterations_last_) / (lapse ? lapse : 1);
+      LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
+          << " (" << per_s << " iter/s, " << lapse << "s/"
+          << param_.display() <<" iter), loss = " << smoothed_loss_;
+      iteration_timer_.Start();
+      iterations_last_ = iter_;
+      const vector<Blob<Dtype>*>& result = net_->output_blobs();
+      int score_index = 0;
+      for (int j = 0; j < result.size(); ++j) {
+        const Dtype* result_vec = result[j]->cpu_data();
+        const string& output_name =
+            net_->blob_names()[net_->output_blob_indices()[j]];
+        const Dtype loss_weight =
+            net_->blob_loss_weights()[net_->output_blob_indices()[j]];
+        for (int k = 0; k < result[j]->count(); ++k) {
+          ostringstream loss_msg_stream;
+          if (loss_weight) {
+            loss_msg_stream << " (* " << loss_weight
+                            << " = " << loss_weight * result_vec[k] << " loss)";
+          }
+          LOG_IF(INFO, Caffe::root_solver()) << "    Train net output #"
+              << score_index++ << ": " << output_name << " = "
+              << result_vec[k] << loss_msg_stream.str();
+        }
+      }
+    }
+  ++iter_; 
+}
+}
+
+template <typename Dtype>
 void Solver<Dtype>::Step(int iters) {
   const int start_iter = iter_;
   const int stop_iter = iter_ + iters;
@@ -271,23 +341,19 @@ void Solver<Dtype>::Step(int iters) {
 #ifndef CPU_ONLY
     CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
 #endif
-    if (allreduce) {
     for (int i = 0; i < callbacks_.size(); ++i) {
       callbacks_[i]->allreduce();
-    };
     }
     // Make sure all gradient exchanges have finished in per-level scheme
-    if ((last_batch && total_loss >= maximum_loss) || allreduce) {
       for (int i = 0; i < callbacks_.size(); ++i) {
         callbacks_[i]->syncCommStream();
-      };
-    }
+      }
 
     ApplyUpdate();
+    ++iter_;
 
     // Increment the internal iter_ counter -- its value should always indicate
     // the number of times the weights have been updated.
-    ++iter_;
 
     SolverAction::Enum request = GetRequestedAction();
 
@@ -304,6 +370,27 @@ void Solver<Dtype>::Step(int iters) {
       break;
     }
   }
+}
+
+template <typename Dtype>
+void Solver<Dtype>::second_half_of_step() {
+  #ifndef CPU_ONLY
+    CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
+#endif
+    //if ((last_batch && total_loss >= maximum_loss) || allreduce) {
+    //for (int i = 0; i < callbacks_.size(); ++i) {
+    //  callbacks_[i]->allreduce();
+    //};
+    //}
+
+   for (int i = 0; i < callbacks_.size(); ++i) {
+        callbacks_[i]->syncCommStream();
+      }
+
+    ApplyUpdate();
+    ++iter_;
+
+    SolverAction::Enum request = GetRequestedAction();
 }
 
 template <typename Dtype>
