@@ -37,7 +37,8 @@ class Batch {
   Blob<int> random_vec_;
   // boost::atomic<volatile bool> pushed_to_gpu_;
   bool dirty;
-  std::size_t count, shuffle_count;
+  // std::size_t count, shuffle_count;
+  int count, shuffle_count;
   bool full_reused, shuffled;
 };
 

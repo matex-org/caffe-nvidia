@@ -38,10 +38,29 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     const LayerParameter& param)
     : BaseDataLayer<Dtype>(param),
 #ifndef USE_DEEPMEM
-      prefetch_free_(), prefetch_full_() {
+      prefetch_free_(), prefetch_full_(), reuse_count(0) {
+      Batch<Dtype> prefetch_[PREFETCH_COUNT];
 #else
       //prefetch_free_(), prefetch_full_(), prefetch_reuse_(), prefetch_shuffle_() {
       prefetch_free_(), prefetch_full_(), prefetch_shuffle_() {
+
+  const char* env_prefetch_count = std::getenv("ENV_PREFETCH_COUNT");
+  const char* env_reuse_count = std::getenv("ENV_REUSE_COUNT");
+
+  prefetch_count =
+    (env_prefetch_count != NULL) ? atoi(env_prefetch_count):PREFETCH_COUNT;
+  reuse_count = (env_reuse_count != NULL) ? atoi (env_reuse_count):0;
+
+  // Batch<Dtype> prefetch_tmp[prefetch_count];
+  // prefetch_ = &prefetch_tmp[0];
+
+  // std::vector<Batch<Dtype> >::iterator itr_p = prefetch_.begin();
+
+  for(std::size_t i = 0; i < prefetch_count; ++i) {
+    // prefetch_.emplace_back(NULL);
+    prefetch_.push_back(new Batch<Dtype>());
+  }
+
 // #ifdef USE_DEEPMEM
   //LOG(INFO) << "Cache size" << param.data_param().cache_size(0);
   cache_size_ = param.data_param().cache_size();
@@ -124,8 +143,11 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       caches_[j]->prev = caches_[j-1];
   }
 #endif
-  for (int i = 0; i < PREFETCH_COUNT; ++i) {
-    prefetch_free_.push(&prefetch_[i]);
+  // for (int i = 0; i < PREFETCH_COUNT; ++i) {
+
+  for (int i = 0; i < prefetch_count; ++i) {
+    // prefetch_free_.push(&prefetch_[i]);
+    prefetch_free_.push(prefetch_[i]);
   }
 }
 
@@ -141,28 +163,35 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   DLOG(INFO) << "BasePrefetchingData LayerSetup";
   randomGen.Init();
 #endif
-  for (int i = 0; i < PREFETCH_COUNT; ++i) {
-    prefetch_[i].data_.mutable_cpu_data();
+  // for (int i = 0; i < PREFETCH_COUNT; ++i) {
+  for (int i = 0; i < prefetch_count; ++i) {
+    // prefetch_[i].data_.mutable_cpu_data();
+    prefetch_[i]->data_.mutable_cpu_data();
     if (this->output_labels_) {
-      prefetch_[i].label_.mutable_cpu_data();
+      // prefetch_[i].label_.mutable_cpu_data();
+      prefetch_[i]->label_.mutable_cpu_data();
     }
   }
 #ifndef CPU_ONLY
   if (Caffe::mode() == Caffe::GPU) {
-    for (int i = 0; i < PREFETCH_COUNT; ++i) {
-      prefetch_[i].data_.mutable_gpu_data();
+    // for (int i = 0; i < PREFETCH_COUNT; ++i) {
+    for (int i = 0; i < prefetch_count; ++i) {
+      // prefetch_[i].data_.mutable_gpu_data();
+      prefetch_[i]->data_.mutable_gpu_data();
       if (this->output_labels_) {
-        prefetch_[i].label_.mutable_gpu_data();
+        // prefetch_[i].label_.mutable_gpu_data();
+        prefetch_[i]->label_.mutable_gpu_data();
       }
-      CUDA_CHECK(cudaEventCreate(&prefetch_[i].copied_));
+      // CUDA_CHECK(cudaEventCreate(&prefetch_[i].copied_));
+      CUDA_CHECK(cudaEventCreate(&prefetch_[i]->copied_));
     }
 #endif
-  for (int i = 0; i < PREFETCH_COUNT; ++i) {
-    // prefetch_[i].count = 10;
-    prefetch_[i].count = 3;
-    prefetch_[i].shuffle_count = 10;
-    prefetch_[i].dirty = true;
-    prefetch_[i].full_reused = true;
+  // for (int i = 0; i < PREFETCH_COUNT; ++i) {
+  for (int i = 0; i < this->prefetch_count; ++i) {
+    prefetch_[i]->count = this->reuse_count;
+    prefetch_[i]->shuffle_count = 10;
+    prefetch_[i]->dirty = true;
+    prefetch_[i]->full_reused = true;
   }
 
 #ifdef USE_DEEPMEM

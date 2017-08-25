@@ -7,6 +7,7 @@
 #include <fstream>
 #include "caffe/util/cache.hpp"
 #include <boost/atomic.hpp>
+#include <cstdlib>
 #endif
 
 #include "caffe/blob.hpp"
@@ -82,7 +83,7 @@ class BasePrefetchingDataLayer :
       const vector<Blob<Dtype>*>& top);
 
   // Prefetches batches (asynchronously if to GPU memory)
-  static const int PREFETCH_COUNT = 5;
+  static const int PREFETCH_COUNT = 3;
 #ifdef USE_DEEPMEM
   virtual void Pass_Value_To_Layer(Dtype value, unsigned int position) {
     //LOG(INFO) << "Base Pass";
@@ -113,9 +114,16 @@ class BasePrefetchingDataLayer :
   void thread_rate_replace_policy(int next_cache);
 
   GenRandNumbers randomGen;
+
+  // std::size_t reuse_count;
+  // std::size_t prefetch_count;
+  int reuse_count;
+  int prefetch_count;
 #endif
 
-  Batch<Dtype> prefetch_[PREFETCH_COUNT];
+  // Batch<Dtype> prefetch_[PREFETCH_COUNT];
+  // Batch<Dtype> * prefetch_;
+  std::vector<Batch<Dtype>* > prefetch_;
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
   // BlockingDeque<Batch<Dtype>*> prefetch_full_;

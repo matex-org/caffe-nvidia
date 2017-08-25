@@ -89,7 +89,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   batch->count -= 1;
   if(this->cache_size_ == 0 || this->caches_[0]->size == 0){
     if(batch->count > 0) {
-      // LOG(INFO) << "Batch Reuse Count: " << batch->count;
+      DLOG(INFO) << "Batch Reuse Count: " << batch->count;
       prefetch_full_.push(batch);
     } else {
       batch->full_reused = true;
