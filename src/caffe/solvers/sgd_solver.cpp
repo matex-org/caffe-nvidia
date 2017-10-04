@@ -360,6 +360,33 @@ void SGDSolver<Dtype>::RestoreSolverStateFromHDF5(const string& state_file) {
   H5Fclose(file_hid);
 }
 
+template <typename Dtype>
+void SGDSolver<Dtype>::ShareWeights(SGDSolver *solver)
+{
+  // the base class impl shares weights biases
+  Solver<Dtype>::ShareWeights(solver);
+  // we share the history
+
+  const vector<shared_ptr<Blob<Dtype> > >& this_history = this->history_;
+  const vector<shared_ptr<Blob<Dtype> > >& that_history = solver->history();
+  CHECK_EQ(this_history.size(), that_history.size())
+      << "sgdsolvers must have identical history shapes";
+  for (int i = 0; i < this_history.size(); ++i) {
+    int this_size = this_history[i]->count();
+    int that_size = that_history[i]->count();
+    CHECK_EQ(this_size, that_size)
+        << "sgdsolvers must have identical history shapes, mismatch at " << i;
+#ifndef CPU_ONLY
+    that_history[i]->data()->set_gpu_data(this_history[i]->data()->mutable_gpu_data());
+    that_history[i]->diff()->set_gpu_data(this_history[i]->diff()->mutable_gpu_data());
+#else
+    that_history[i]->data()->set_cpu_data(this_history[i]->data()->mutable_cpu_data());
+    that_history[i]->diff()->set_cpu_data(this_history[i]->diff()->mutable_cpu_data());
+#endif
+  }
+
+}
+
 INSTANTIATE_CLASS(SGDSolver);
 REGISTER_SOLVER_CLASS(SGD);
 

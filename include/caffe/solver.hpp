@@ -79,6 +79,9 @@ class Solver {
   void set_scale_on_apply(float value) { scale_on_apply_ = value; }
   bool use_mpi() { return use_mpi_; }
   void set_use_mpi(bool value) { use_mpi_ = value; }
+  // Share this solver's weight/bias with the given solver.
+  // Networks must have identical shapes.
+  void ShareWeights(Solver *solver);
 
   // Invoked at specific points during an iteration
   class Callback {

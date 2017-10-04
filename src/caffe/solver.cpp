@@ -572,6 +572,30 @@ void Solver<Dtype>::UpdateSmoothedLoss(Dtype loss, int start_iter,
   }
 }
 
+template <typename Dtype>
+void Solver<Dtype>::ShareWeights(Solver *solver)
+{
+  const vector<Blob<Dtype>*>& this_net =
+      this->net()->learnable_params();
+  const vector<Blob<Dtype>*>& that_net =
+      solver->net()->learnable_params();
+  CHECK_EQ(this_net.size(), that_net.size())
+      << "solvers must have identical network shapes";
+  for (int i = 0; i < this_net.size(); ++i) {
+    int this_size = this_net[i]->count();
+    int that_size = that_net[i]->count();
+    CHECK_EQ(this_size, that_size)
+        << "solvers must have identical network shapes, mismatch at " << i;
+#ifndef CPU_ONLY
+    that_net[i]->data()->set_gpu_data(this_net[i]->data()->mutable_gpu_data());
+    that_net[i]->diff()->set_gpu_data(this_net[i]->diff()->mutable_gpu_data());
+#else
+    that_net[i]->data()->set_cpu_data(this_net[i]->data()->mutable_cpu_data());
+    that_net[i]->diff()->set_cpu_data(this_net[i]->diff()->mutable_cpu_data());
+#endif
+  }
+}
+
 INSTANTIATE_CLASS(Solver);
 
 }  // namespace caffe
