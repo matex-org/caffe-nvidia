@@ -76,6 +76,9 @@ class Solver {
   int iter() { return iter_; }
   float scale_on_apply() { return scale_on_apply_; }
   void set_scale_on_apply(float value) { scale_on_apply_ = value; }
+  // Share this solver's weight/bias with the given solver.
+  // Networks must have identical shapes.
+  void ShareWeights(Solver *solver);
 
   // Invoked at specific points during an iteration
   class Callback {
