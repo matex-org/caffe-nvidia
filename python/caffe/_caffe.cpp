@@ -19,6 +19,9 @@
 #include "caffe/layers/python_layer.hpp"
 #include "caffe/sgd_solvers.hpp"
 #include "caffe/util/gpu_memory.hpp"
+#include "caffe/parallel/mpi_sync_gpu.hpp"
+#include "caffe/parallel.hpp"
+#include "caffe/mpi.hpp"
 
 // Temporary solution for numpy < 1.7 versions: old macro, no promises.
 // You're strongly advised to upgrade to >= 1.7.
@@ -331,6 +334,14 @@ BOOST_PYTHON_MODULE(_caffe) {
     .add_property("type", bp::make_function(&Layer<Dtype>::type));
   BP_REGISTER_SHARED_PTR_TO_PYTHON(Layer<Dtype>);
 
+#ifdef USE_MPI
+  bp::class_<MPISyncGPU<Dtype>, shared_ptr<MPISyncGPU<Dtype> >, boost::noncopyable>(
+    "MPISyncGPU", bp::init<shared_ptr<Solver<Dtype> > >())
+    .def("run", &MPISyncGPU<Dtype>::Run)
+    .def("step", &MPISyncGPU<Dtype>::Step);
+  BP_REGISTER_SHARED_PTR_TO_PYTHON(MPISyncGPU<Dtype>);
+#endif
+
   bp::class_<LayerParameter>("LayerParameter", bp::no_init);
 
   bp::class_<Solver<Dtype>, shared_ptr<Solver<Dtype> >, boost::noncopyable>(
@@ -342,6 +353,7 @@ BOOST_PYTHON_MODULE(_caffe) {
     .def("solve", static_cast<void (Solver<Dtype>::*)(const char*)>(
           &Solver<Dtype>::Solve), SolveOverloads())
     .def("step", &Solver<Dtype>::Step)
+    .def("set_iter", &Solver<Dtype>::SetIters)
     .def("restore", &Solver<Dtype>::Restore)
     .def("snapshot", &Solver<Dtype>::Snapshot);
   BP_REGISTER_SHARED_PTR_TO_PYTHON(Solver<Dtype>);
@@ -349,6 +361,8 @@ BOOST_PYTHON_MODULE(_caffe) {
   bp::class_<SGDSolver<Dtype>, bp::bases<Solver<Dtype> >,
     shared_ptr<SGDSolver<Dtype> >, boost::noncopyable>(
         "SGDSolver", bp::init<string>())
+    .add_property("history", bp::make_function(&SGDSolver<Dtype>::history,
+        bp::return_internal_reference<>()))
     .def("share_weights", &SGDSolver<Dtype>::ShareWeights);
   bp::class_<NesterovSolver<Dtype>, bp::bases<Solver<Dtype> >,
     shared_ptr<NesterovSolver<Dtype> >, boost::noncopyable>(
