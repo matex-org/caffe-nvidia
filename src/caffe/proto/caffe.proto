@@ -107,7 +107,7 @@ message NetParameter {
 // NOTE
 // Update the next available ID when you add a new SolverParameter field.
 //
-// SolverParameter next available ID: 42 (last added: per_parameter_reduce)
+// SolverParameter next available ID: 43 (last added: final_lr)
 message SolverParameter {
   //////////////////////////////////////////////////////////////////////////////
   // Specifying the train and test networks
@@ -154,6 +154,7 @@ message SolverParameter {
   // ensuring memory availability and printing the starting value of the loss.
   optional bool test_initialization = 32 [default = true];
   optional float base_lr = 5; // The base learning rate
+  optional float final_lr = 42; // The final learning rate
   // the number of iterations between displaying info. If display = 0, no info
   // will be displayed.
   optional int32 display = 6;
