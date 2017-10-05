@@ -16,7 +16,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   Batch<Dtype> * batch;
   volatile bool * dirty;
   // volatile bool *dirtybit;
-  PopBatch<Dtype> *p_batch;
+  PopBatch<Dtype> pbatch;
   // DLOG(INFO) << "FGPU Call DEEPMEM";
   if(this->cache_size_)
   {
@@ -27,12 +27,16 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
       //Refill before poping using the policy we have
       (caches_[0]->*(caches_[0]->local_refill_policy))(1);
     }
-    DLOG(INFO) << "l0CACHE_FULL2_SIZE(beforepop_cu):" << l0cache_full2_.size();
-    p_batch = l0cache_full2_.pop("Cache not ready yet");
-    batch = p_batch->batch;
-    // dirty = p_batch->dirty;
+    // DLOG(INFO) << "l0CACHE_FULL2_SIZE(beforepop_cu):" << l0cache_full2_.size();
+    DLOG(INFO) << "PREFETCH_FULL_SIZE(beforepop_cu):" << prefetch_full_.size();
+    // p_batch = l0cache_full2_.pop("Cache not ready yet");
+    // p_batch = prefetch_full_.pop("Cache not ready yet");
+    // batch = p_batch->batch;
+    // batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(gpu-cache)");
+    pbatch = pop_prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(gpu-cache)");
+    batch = pbatch.batch;
   }
-  else //Use the original unmofified code to get a batch
+  else //Use the original unmodified code to get a batch
   {
     batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty (gpu)");
   }
@@ -72,29 +76,28 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   // copied in meanwhile.
   CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
 #ifdef USE_DEEPMEM
-  if(this->cache_size_) {
-  // We finished copy the batch so mark it for replacement
-    // volatile bool tdirty = true;
-    // *((volatile bool*)p_batch->dirty) =  &tdirty
-    // *dirty = true;
-    batch->dirty = true;
-    // *(p_batch->dirty) = true;
-    // p_batch->pushed_to_gpu->store(false, boost::memory_order_relaxed); //= false;
-    // p_batch->pushed_to_gpu->store(false, boost::memory_order_consume); //= false;
-    l0cache_free_.push(p_batch);
-    DLOG(INFO) << "l0CACHE_free_SIZE(afterpush_cu):" << l0cache_free_.size();
-
-  }
   //Use the orginal code if caches are turned off
   batch->count -= 1;
-  if(this->cache_size_ == 0 || this->caches_[0]->size == 0){
-    if(batch->count > 0) {
-      DLOG(INFO) << "Batch Reuse Count: " << batch->count;
-      prefetch_full_.push(batch);
-    } else {
-      batch->full_reused = true;
-      prefetch_free_.push(batch);
-    }
+  if(batch->count > 0) {
+      LOG(INFO) << "Batch Reuse Count: " << batch->count;
+      batch->dirty = false;
+      if(cache_size_ == 0 || caches_[0]->size == 0) {
+        prefetch_full_.push(batch);
+      }
+      else {
+        *pbatch.dirty = false;
+        pop_prefetch_full_.push(pbatch);
+      }
+  }
+  else {
+      batch->dirty = true;
+      if(cache_size_ == 0 || caches_[0]->size == 0) {
+        prefetch_free_.push(batch);
+      }
+      else {
+        *pbatch.dirty = true;
+        pop_prefetch_free_.push(pbatch);
+      }
   }
 #else
   prefetch_free_.push(batch);

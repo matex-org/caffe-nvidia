@@ -199,6 +199,7 @@ void Solver<Dtype>::Step(int iters) {
   const int start_iter = iter_;
   const int stop_iter = iter_ + iters;
   int average_loss = this->param_.average_loss();
+  double total_time = 0;
   losses_.clear();
   smoothed_loss_ = 0;
   iteration_timer_.Start();
@@ -258,13 +259,13 @@ void Solver<Dtype>::Step(int iters) {
             net_->blob_loss_weights()[net_->output_blob_indices()[j]];
         for (int k = 0; k < result[j]->count(); ++k) {
           ostringstream loss_msg_stream;
-          if (loss_weight) {
-            loss_msg_stream << " (* " << loss_weight
-                            << " = " << loss_weight * result_vec[k] << " loss)";
-          }
-          LOG_IF(INFO, Caffe::root_solver()) << "    Train net output #"
-              << score_index++ << ": " << output_name << " = "
-              << result_vec[k] << loss_msg_stream.str();
+          //if (loss_weight) {
+          //  loss_msg_stream << " (* " << loss_weight
+          //                  << " = " << loss_weight * result_vec[k] << " loss)";
+          //}
+          //LOG_IF(INFO, Caffe::root_solver()) << "    Train net output #"
+          //    << score_index++ << ": " << output_name << " = "
+          //    << result_vec[k] << loss_msg_stream.str();
         }
       }
     }
@@ -283,6 +284,7 @@ void Solver<Dtype>::Step(int iters) {
 
     // Increment the internal iter_ counter -- its value should always indicate
     // the number of times the weights have been updated.
+    total_time += iteration_timer_.Seconds();
     ++iter_;
 
     SolverAction::Enum request = GetRequestedAction();
@@ -300,6 +302,8 @@ void Solver<Dtype>::Step(int iters) {
       break;
     }
   }
+  LOG(INFO) << "Final Average Iter/s " << iters/(total_time ? total_time : 1) << ", for iterations: "
+    << iters;
 }
 
 template <typename Dtype>

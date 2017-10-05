@@ -9,6 +9,7 @@
 #include "caffe/proto/caffe.pb.h"
 #include "caffe/util/blocking_queue.hpp"
 #include "caffe/util/blocking_deque.hpp"
+#include "caffe/syncedmem.hpp"
 
 namespace caffe {
 
@@ -50,6 +51,9 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   prefetch_count =
     (env_prefetch_count != NULL) ? atoi(env_prefetch_count):PREFETCH_COUNT;
   reuse_count = (env_reuse_count != NULL) ? atoi (env_reuse_count):0;
+
+  LOG(INFO) << "Env Prefetch Count: " << prefetch_count;
+  LOG(INFO) << "Env Reuse Count: " << reuse_count;
 
   // Batch<Dtype> prefetch_tmp[prefetch_count];
   // prefetch_ = &prefetch_tmp[0];
@@ -94,7 +98,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       caches_[i-1]->create( new Batch<Dtype>[caches_[i-1]->size]
           , new bool[caches_[i-1]->size]
           // , new bool[caches_[i-1]->size]
-          , new boost::atomic<volatile bool>[caches_[i-1]->size]
+          , new bool[caches_[i-1]->size]
           , thread_safe );
     }
     else if(param.data_param().cache(j).type() == CacheParameter::DISK)
@@ -105,7 +109,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       caches_[i-1]->create( new Batch<Dtype>[2]
           , new bool[caches_[i-1]->size]
           // , new bool[caches_[i-1]->size]
-          , new boost::atomic<volatile bool>[caches_[i-1]->size]
+          , new bool[caches_[i-1]->size]
           , thread_safe );
     }
 //  #endif
@@ -128,6 +132,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     caches_[i-1]->refill_start = 0;
     caches_[i-1]->current_shuffle_count = 0;
     caches_[i-1]->eviction_rate = param.data_param().cache(j).eviction_rate();
+    // reuse_count = param.data_param().cache(j).eviction_rate();
     caches_[i-1]->refill_policy = &Cache<Dtype>::rate_replace_policy;
     caches_[i-1]->local_refill_policy = &Cache<Dtype>::local_rate_replace_policy;
     caches_[i-1]->disk_location = param.data_param().cache(j).disk_location();
@@ -144,10 +149,21 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   }
 #endif
   // for (int i = 0; i < PREFETCH_COUNT; ++i) {
+  //typedef MemoryCache<Dtype>
+  typedef MemoryCache<Dtype> MemCacheType;
+  MemCacheType * memcache;
 
-  for (int i = 0; i < prefetch_count; ++i) {
-    // prefetch_free_.push(&prefetch_[i]);
-    prefetch_free_.push(prefetch_[i]);
+  if(cache_size_ && ((memcache = dynamic_cast<MemCacheType *>(caches_[0])))) {
+    // only cache level 0 pushes data to prefetch_free queue
+    // for (int i = 0; i < memcache->size ; ++i) {
+    //   prefetch_free_.push(&memcache->cache[i]);
+    // }
+  }
+  else {
+    for (int i = 0; i < prefetch_count; ++i) {
+      // prefetch_free_.push(&prefetch_[i]);
+      prefetch_free_.push(prefetch_[i]);
+    }
   }
 }
 
@@ -189,14 +205,15 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   // for (int i = 0; i < PREFETCH_COUNT; ++i) {
   for (int i = 0; i < this->prefetch_count; ++i) {
     prefetch_[i]->count = this->reuse_count;
-    prefetch_[i]->shuffle_count = 10;
+    // prefetch_[i]->shuffle_count = 10;
     prefetch_[i]->dirty = true;
-    prefetch_[i]->full_reused = true;
+    // prefetch_[i]->full_reused = true;
   }
 
 #ifdef USE_DEEPMEM
   for (int i = 0; i < cache_size_; ++i) {
-    caches_[i]->mutate_data(this->output_labels_);
+    // output_labels and cache level (if level 0, malloc gpu)
+    caches_[i]->mutate_data(this->output_labels_, i);
   }
 #endif
   }
@@ -208,17 +225,30 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
     caches_[i]->fill(false);
   }
 
-  if(cache_size_) {
+  typedef MemoryCache<Dtype> MemCacheType;
+  MemCacheType * memcache;
+
+  if(cache_size_ && ((memcache = dynamic_cast<MemCacheType *>(caches_[0])))) {
+    // only cache level 0 pushes data to prefetch_free queue
+    for (int i = 0; i < memcache->size ; ++i) {
+      PopBatch<Dtype> pbatch = memcache->pop();
+      // pop_prefetch_free_.push(&memcache->cache[i]);
+      pop_prefetch_free_.push(pbatch);
+    }
+  }
+
+  //if(cache_size_) {
   // typedef MemoryCache<Dtype> MemCacheType;
   // MemCacheType * memcache;
   // if(( memcache = dynamic_cast<MemCacheType*>(caches_[0]))) {
     // for (int i = 0; i < memcache->size; i++) {
-    for (int i = 0; i < caches_[0]->size; i++) {
-      l0cache_free_.push(caches_[0]->pop());
-    }
+  //  for (int i = 0; i < caches_[0]->size; i++) {
+  //    l0cache_free_.push(caches_[0]->pop());
+  //  }
   // }
-  }
+  //}
 #endif
+
 /*
   // Only if GPU mode on then we use background threads
 #ifdef USE_DEEPMEM
@@ -235,42 +265,48 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
 
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::shuffle() {
-  bool done = false;
-  std::size_t shuffle_remaining = prefetch_shuffle_.size();
-  // std::vector<ListType::iterator> itrVec;
-  while (!done) {
+  // bool done = false;
+  // std::size_t shuffle_remaining = prefetch_shuffle_.size();
+  // // std::vector<ListType::iterator> itrVec;
+  // while (!done) {
 
-    if(shuffle_remaining < 2) {
-      done = true;
-      break;
-    }
-    Batch<Dtype>* b1 = prefetch_shuffle_.front();
-    prefetch_shuffle_.pop();
-    Batch<Dtype>* b2 = prefetch_shuffle_.front();
-    prefetch_shuffle_.pop();
-    if(!b1->shuffled && !b2->shuffled) {
-      int rand;
-      for(int i = 0; i < b1->data_.shape(0); i++) {
-        rand = randomGen(b2->data_.shape(0));
-        MemoryCache<Dtype>::shuffle_cache(b1, i, b2, rand);
-      }
-      b1->shuffled = true;
-      b2->shuffled = true;
-      b1->shuffle_count -= 1;
-      b2->shuffle_count -= 1;
-      shuffle_remaining -= 2;
-      prefetch_shuffle_.push(b1);
-      prefetch_shuffle_.push(b2);
-    }
-  };
+  //   if(shuffle_remaining < 2) {
+  //     done = true;
+  //     break;
+  //   }
+  //   Batch<Dtype>* b1 = prefetch_shuffle_.front();
+  //   prefetch_shuffle_.pop();
+  //   Batch<Dtype>* b2 = prefetch_shuffle_.front();
+  //   prefetch_shuffle_.pop();
+  //   if(!b1->shuffled && !b2->shuffled) {
+  //     int rand;
+  //     for(int i = 0; i < b1->data_.shape(0); i++) {
+  //       rand = randomGen(b2->data_.shape(0));
+  //       MemoryCache<Dtype>::shuffle_cache(b1, i, b2, rand);
+  //     }
+  //     b1->shuffled = true;
+  //     b2->shuffled = true;
+  //     b1->shuffle_count -= 1;
+  //     b2->shuffle_count -= 1;
+  //     shuffle_remaining -= 2;
+  //     prefetch_shuffle_.push(b1);
+  //     prefetch_shuffle_.push(b2);
+  //   }
+  // };
 }
 
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {
 DLOG(INFO) << "InternalThrdEnt";
 #ifdef USE_DEEPMEM
-  PopBatch<Dtype> *pbatch;
+  // PopBatch<Dtype> *pbatch;
+  // Fill the caches in the prefetcher thread
+
   try {
+    for (int i = 0; i < cache_size_; ++i) {
+      // fill labels as well
+      caches_[i]->fill(false);
+    }
     while (!must_stop()) {
       if(cache_size_)
       {
@@ -280,54 +316,49 @@ DLOG(INFO) << "InternalThrdEnt";
           if(caches_[i]->prefetch)
             (caches_[i]->*(caches_[i]->refill_policy))(1);
         }
-        DLOG(INFO) << "l0CACHE_FREE_SIZE:" << l0cache_free_.size();
-
-        if(!l0cache_free_.peek()->batch->dirty) {
-        PopBatch<Dtype> *p_batch = l0cache_free_.pop("Cache pop");
-        // *p_batch->dirty = false;
-        // p_batch = caches_[0]->pop();
-        Batch<Dtype>* batch = p_batch->batch;
-#ifndef CPU_ONLY
-        // bool dty = (bool)*p_batch->dirty;
-        // bool pgpu = (bool)p_batch->pushed_to_gpu->load(boost::memory_order_release);
-        // if(!pgpu && !dty) {
-          if (Caffe::mode() == Caffe::GPU) {
-            batch->data_.data()->async_gpu_push();
-            if (this->output_labels_) {
-                batch->label_.data()->async_gpu_push();
-            }
-            cudaStream_t stream = batch->data_.data()->stream();
-            // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-            DLOG(INFO) << "Before CudaEvenRecord ";
-            CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
-            CUDA_CHECK(cudaStreamSynchronize(stream));
+        PopBatch<Dtype> pbatch = pop_prefetch_free_.pop(
+                    "DEEPMEMCACHE DataLayer(Pop CH) Free Queue Empty");
+        Batch<Dtype>* batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
+        if(batch->data_.data()->head() != SyncedMemory::HEAD_AT_CPU) {
+          batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+          if(this->output_labels_) {
+            batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
           }
-          // *p_batch->pushed_to_gpu = true;
-          // batch->count_ += 1;
-          l0cache_full2_.push(p_batch);
-          DLOG(INFO) << "l0CACHE_FULL2_SIZE:" << l0cache_full2_.size();
-        // }
-#endif
         }
+#ifndef CPU_ONLY
+        if (Caffe::mode() == Caffe::GPU) {
+          batch->data_.data()->async_gpu_push();
+          if (this->output_labels_) {
+              batch->label_.data()->async_gpu_push();
+          }
+          cudaStream_t stream = batch->data_.data()->stream();
+          // CUDA_CHECK(cudaStreamCreateWithFlags(&stream,cudaStreamNonBlocking));
+          CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
+          CUDA_CHECK(cudaStreamSynchronize(stream));
+        }
+#endif
+        // prefetch_full_.push(batch);
+        // pbatch.batch = batch;
+        pop_prefetch_full_.push(pbatch);
       } else {
         // Use Default approach:
-        Batch<Dtype>* batch; std::size_t reuse_count; bool f_reuse;
+        Batch<Dtype>* batch; // std::size_t reuse_count; bool f_reuse;
         if(prefetch_shuffle_.size() >= 2) {
           // shuffle data in shuffle_queue (non blocking queue)
           shuffle();
-          Batch<Dtype>* b = prefetch_shuffle_.front();
-          prefetch_shuffle_.pop();
-#ifndef CPU_ONLY
-          if(b->shuffled = true) {
-            b->data_.data()->async_gpu_recopy();
-            if(this->output_labels_)
-              b->label_.data()->async_gpu_recopy();
-            b->shuffled = false;
-#endif
-            prefetch_full_.push(b);
-          } else {
-            prefetch_shuffle_.push(b);
-          }
+//           Batch<Dtype>* b = prefetch_shuffle_.front();
+//           prefetch_shuffle_.pop();
+// #ifndef CPU_ONLY
+//           if(b->shuffled == true) {
+//             b->data_.data()->async_gpu_recopy();
+//             if(this->output_labels_)
+//               b->label_.data()->async_gpu_recopy();
+//             b->shuffled = false;
+// #endif
+//             prefetch_full_.push(b);
+//           } else {
+//             prefetch_shuffle_.push(b);
+//           }
         } else {
             batch = prefetch_free_.pop("DEEPMEMCACHE DataLayer Free Queue Empty");
             load_batch(batch);
@@ -341,9 +372,9 @@ DLOG(INFO) << "InternalThrdEnt";
               // CUDA_CHECK(cudaStreamCreateWithFlags(&stream,cudaStreamNonBlocking));
               CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
               CUDA_CHECK(cudaStreamSynchronize(stream));
-              prefetch_full_.push(batch);
 #endif
             }
+            prefetch_full_.push(batch);
         }
       }
     }
@@ -543,3 +574,33 @@ INSTANTIATE_CLASS(BasePrefetchingDataLayer);
   //     }
   //   }
   // }
+  //
+
+//####        DLOG(INFO) << "l0CACHE_FREE_SIZE:" << l0cache_free_.size();
+//####
+//####        if(!l0cache_free_.peek()->batch->dirty) {
+//####        PopBatch<Dtype> *p_batch = l0cache_free_.pop("Cache pop");
+//####        // *p_batch->dirty = false;
+//####        // p_batch = caches_[0]->pop();
+//####        Batch<Dtype>* batch = p_batch->batch;
+//#####ifndef CPU_ONLY
+//####        // bool dty = (bool)*p_batch->dirty;
+//####        // bool pgpu = (bool)p_batch->pushed_to_gpu->load(boost::memory_order_release);
+//####        // if(!pgpu && !dty) {
+//####          if (Caffe::mode() == Caffe::GPU) {
+//####            batch->data_.data()->async_gpu_push();
+//####            if (this->output_labels_) {
+//####                batch->label_.data()->async_gpu_push();
+//####            }
+//####            cudaStream_t stream = batch->data_.data()->stream();
+//####            // CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+//####            DLOG(INFO) << "Before CudaEvenRecord ";
+//####            CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
+//####            CUDA_CHECK(cudaStreamSynchronize(stream));
+//####          }
+//####          // *p_batch->pushed_to_gpu = true;
+//####          // batch->count_ += 1;
+//####          l0cache_full2_.push(p_batch);
+//####          DLOG(INFO) << "l0CACHE_FULL2_SIZE:" << l0cache_full2_.size();
+//####        // }
+//#####endif

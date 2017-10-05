@@ -126,6 +126,10 @@ class BasePrefetchingDataLayer :
   std::vector<Batch<Dtype>* > prefetch_;
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
+
+  std::vector<PopBatch<Dtype>* > pop_prefetch_;
+  BlockingQueue<PopBatch<Dtype> > pop_prefetch_free_;
+  BlockingQueue<PopBatch<Dtype> > pop_prefetch_full_;
   // BlockingDeque<Batch<Dtype>*> prefetch_full_;
   // BlockingQueue<Batch<Dtype>*> prefetch_reuse_;
   std::queue<Batch<Dtype>*> prefetch_shuffle_;
