@@ -244,6 +244,8 @@ class Net {
     solver_ = s;
   }
 
+  void PassParameterToLayer(const string& LayerName, int value) const;
+
  protected:
   // Helpers for Init.
   /// @brief Append a new top blob to the net.

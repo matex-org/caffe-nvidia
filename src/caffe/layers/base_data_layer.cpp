@@ -316,6 +316,8 @@ DLOG(INFO) << "InternalThrdEnt";
           if(caches_[i]->prefetch)
             (caches_[i]->*(caches_[i]->refill_policy))(1);
         }
+        // LOG_EVERY_N(INFO, 1000) << "InternalThreadEntry LOG! Print every 1000 call";
+        // LOG(INFO) << "InternalThreadEntry LOG!";
         PopBatch<Dtype> pbatch = pop_prefetch_free_.pop(
                     "DEEPMEMCACHE DataLayer(Pop CH) Free Queue Empty");
         Batch<Dtype>* batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
@@ -360,6 +362,7 @@ DLOG(INFO) << "InternalThrdEnt";
 //             prefetch_shuffle_.push(b);
 //           }
         } else {
+            LOG_EVERY_N(INFO, 1000) << "Default InternalThreadEntry LOG! Print every 1000 call";
             batch = prefetch_free_.pop("DEEPMEMCACHE DataLayer Free Queue Empty");
             load_batch(batch);
 #ifndef CPU_ONLY

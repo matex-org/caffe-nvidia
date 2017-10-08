@@ -200,9 +200,15 @@ void Solver<Dtype>::Step(int iters) {
   const int stop_iter = iter_ + iters;
   int average_loss = this->param_.average_loss();
   double total_time = 0;
+  Timer iteration_timer2_;
   losses_.clear();
+  validation_accuracy_.clear();
   smoothed_loss_ = 0;
+  iteration_timer2_.Start();
   iteration_timer_.Start();
+
+  const char* env_reuse_count = std::getenv("ENV_REUSE_COUNT");
+  reuse_count = (env_reuse_count != NULL) ? atoi (env_reuse_count):0;
 
   for (int i = 0; i < callbacks_.size(); ++i) {
     // we need to sync all threads before starting, otherwise some cuda init,
@@ -284,8 +290,25 @@ void Solver<Dtype>::Step(int iters) {
 
     // Increment the internal iter_ counter -- its value should always indicate
     // the number of times the weights have been updated.
-    total_time += iteration_timer_.Seconds();
+    // total_time += iteration_timer2_.Seconds();
     ++iter_;
+
+    // DUMMY TEST: TODO remove this
+
+    //if(iter_ == 100)
+    if(validation_accuracy_.size() > 1) {
+      // If validation accuracy slope negative
+      if((validation_accuracy_[1] - validation_accuracy_[0]) < 0){
+        reuse_count = 0;
+        this->net_->PassParameterToLayer("data", reuse_count);
+        validation_accuracy_.pop_front();
+      }
+      else {
+        reuse_count += 1;
+        this->net_->PassParameterToLayer("data", reuse_count);
+        validation_accuracy_.pop_front();
+      }
+    }
 
     SolverAction::Enum request = GetRequestedAction();
 
@@ -302,8 +325,10 @@ void Solver<Dtype>::Step(int iters) {
       break;
     }
   }
-  LOG(INFO) << "Final Average Iter/s " << iters/(total_time ? total_time : 1) << ", for iterations: "
+  total_time = iteration_timer2_.Seconds();
+  LOG(INFO) << "Final Average Iter/s " << iters/(total_time ? total_time  : 1) << ", for iterations: "
     << iters;
+  LOG(INFO) << "Final Total Time (s) " << total_time;
 }
 
 template <typename Dtype>
@@ -436,6 +461,15 @@ void Solver<Dtype>::Test(const int test_net_id) {
     }
     LOG(INFO) << "    Test net output #" << i << ": " << output_name << " = "
               << mean_score << loss_msg_stream.str();
+    if(output_name == "accuracy") {
+      if(validation_accuracy_.size() < 2) {
+        validation_accuracy_.push_back(mean_score);
+      }
+      else {
+        validation_accuracy_.pop_front();
+        validation_accuracy_.push_back(mean_score);
+      }
+    }
   }
 }
 

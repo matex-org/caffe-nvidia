@@ -1022,6 +1022,9 @@ bool Net<Dtype>::has_layer(const string& layer_name) const {
 #ifdef USE_DEEPMEM
 template <typename Dtype>
 bool Net<Dtype>::has_layer_type(const string& layer_type) const {
+    // LOG(INFO) << "layers_types_index_size: " << layer_types_index_.size();
+    // LOG(INFO) << "layers_types key: " << layer_type;
+    // LOG(INFO) << "layers_types value: " << layer_types_index_.find(layer_type)->second;
     return layer_types_index_.find(layer_type) != layer_types_index_.end();
 }
 #endif
@@ -1051,6 +1054,27 @@ const shared_ptr<Layer<Dtype> > Net<Dtype>::layer_by_type(
     LOG(WARNING) << "Unknown layer type " << layer_type;
   }
   return layer_ptr;
+}
+
+template <typename Dtype>
+void Net<Dtype>::PassParameterToLayer(const string& LayerName, int value) const {
+  shared_ptr<Layer<Dtype> > layer_ptr;
+
+  string layer_name = LayerName;
+  if(LayerName == "data")
+    layer_name = layer_names_[0];
+
+  if (has_layer(layer_name)) {
+    // layer_ptr = layers_[layer_types_index_.find(layer_type)->second];
+    layer_ptr = layers_[layer_names_index_.find(layer_name)->second];
+    layer_ptr->PassParameterToLayer(value);
+  }
+  else {
+    LOG(WARNING) << "Non Existent Layer: " << LayerName;
+    //for(auto l_ : layer_names_)
+    for(int i = 0; i < layer_names_.size(); i++)
+      LOG(INFO) << "Existing Layer: " << layer_names_[i];
+  }
 }
 #endif
 

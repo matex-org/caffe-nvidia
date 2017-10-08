@@ -47,6 +47,8 @@ class BaseDataLayer : public Layer<Dtype> {
   virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
       const vector<bool>& propagate_down, const vector<Blob<Dtype>*>& bottom) {}
 
+  virtual inline void PassParameterToLayer(const int value) {}
+
  protected:
   TransformationParameter transform_param_;
   shared_ptr<DataTransformer<Dtype> > data_transformer_;
@@ -81,6 +83,11 @@ class BasePrefetchingDataLayer :
       const vector<Blob<Dtype>*>& top);
   virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+
+  virtual void PassParameterToLayer(const int value) {
+    LOG(INFO) << "New Reuse Count: " << value;
+    this->reuse_count = value;
+  }
 
   // Prefetches batches (asynchronously if to GPU memory)
   static const int PREFETCH_COUNT = 3;

@@ -126,6 +126,11 @@ class Solver {
   vector<Dtype> losses_;
   Dtype smoothed_loss_;
 
+#ifdef USE_DEEPMEM
+  std::deque<Dtype> validation_accuracy_;
+  int reuse_count;
+#endif
+
   // The root solver that holds root nets (actually containing shared layers)
   // in data parallelism
   const Solver* const root_solver_;
