@@ -124,7 +124,8 @@ class DiskCache : public Cache <Dtype>
   public:
 
   //File stream
-  bool open;
+  std::mutex mtx_;
+  bool open, r_open;
   fstream cache;
   fstream cache_read;
   Batch<Dtype> * cache_buffer;
