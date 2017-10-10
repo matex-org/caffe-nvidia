@@ -137,9 +137,17 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   string& str = *(reader_.full().peek());
   Datum datum;
   datum.ParseFromString(str);
+  // const int datum_channels = datum.channels();
+  // LOG(INFO) << "LOAD DATA DATUM Channels count: " << datum_channels;
   // Use data_transformer to infer the expected blob shape from datum.
+  /*while(datum.channels() == 0) {
+    str = *(reader_.full().pop("Waiting for data"));
+    datum.ParseFromString(str);
+  }*/
   vector<int> top_shape = this->data_transformer_->InferBlobShape(datum,
                                                    use_gpu_transform);
+
+  // LOG(INFO) << "LOAD DATA RESHAPE [1] count: " << top_shape[1];
   this->transformed_data_.Reshape(top_shape);
   // Reshape batch according to the batch_size.
   top_shape[0] = batch_size;
@@ -156,6 +164,13 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       // Get a datum
       string* str = (reader_.full().pop("Waiting for data"));
       read_time += timer.MicroSeconds();
+        Datum datum;
+        datum.ParseFromString(*str);
+        // LOG(INFO) << "DATUM CHANNELS BEFORE TRANSORM: " << datum.channels();
+      /*while(datum.channels() == 0 ) {
+        str = (reader_.full().pop("Waiting for data"));
+        datum.ParseFromString(*str);
+      }*/
       // Copy label.
       Dtype* label_ptr = NULL;
       if (this->output_labels_) {

@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <boost/atomic.hpp>
+#include <boost/thread/mutex.hpp>
 
 #include "caffe/blob.hpp"
 #include "caffe/data_transformer.hpp"
@@ -124,7 +125,7 @@ class DiskCache : public Cache <Dtype>
   public:
 
   //File stream
-  std::mutex mtx_;
+  boost::mutex mtx_;
   bool open, r_open;
   fstream cache;
   fstream cache_read;

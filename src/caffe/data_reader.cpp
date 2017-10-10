@@ -72,7 +72,11 @@ DataReader::Body::~Body() {
 
 void DataReader::Body::InternalThreadEntry() {
   shared_ptr<db::DB> db(db::GetDB(param_.data_param().backend()));
+#ifdef USE_DEEPMEM
+  db->Open(param_.data_param().source(), db::READ, &param_);
+#else
   db->Open(param_.data_param().source(), db::READ);
+#endif
   shared_ptr<db::Cursor> cursor(db->NewCursor());
   vector<shared_ptr<QueuePair> > qps;
   try {

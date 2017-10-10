@@ -86,24 +86,32 @@ class RemoteIndexSFTPEnv
       buffer = new char[buffer_size];
     }
     uint64_t res=0, total = 0;
+    // LOG(INFO) << "Here----------------1!";
 
     timer.Start();
     res = sftp_read( block_file_, buffer, image_index[current_index]);
     total+=res;
+    // LOG(INFO) << "Here----------------1!";
     while(total != image_index[current_index])
     {
       res = sftp_read( block_file_, buffer+total, image_index[current_index]-total);
       total+=res;
     }
+    // LOG(INFO) << "Here----------------2!";
     bytes_total+= image_index[current_index];
-    if(current_index % 250 == 0)
+    /*if(current_index > 0 && current_index % 250 == 0)
     {
+      LOG(INFO) << "Here----------------2aa!";
+      LOG(INFO) << "Current Index: " << current_index;
       LOG(INFO) << "Avg. "  << (((double)bytes_total)/total_timer.SecondsCont())/(1024*1024) << "MB/s Speed ";
       //LOG(INFO) << "Inst. "  << (((double)total)/timer.Seconds())/(1024*1024) << "MB/s Speed ";
-    }
+    }*/
     value = string(buffer, image_index[current_index]);
+    // LOG(INFO) << "Here----------------2a!";
     //LOG(INFO) << total << "/" << image_index[current_index] << " "  << value.size() << " " << key_index[current_index];
     key = key_index[current_index++];//std::to_string(current_index++);
+
+    // LOG(INFO) << "Here----------------3!";
   }
 
   void put(string& key, string& value)
@@ -127,6 +135,7 @@ class RemoteIndexSFTPEnv
     }
     if(!found)
     {
+      // LOG(INFO) << "Delimiter Not Found!!";
       memcpy(buffer,buffer+pos, max_size);
       return max_size;
     }
@@ -192,6 +201,7 @@ class RemoteIndexSFTPEnv
               free(hash);
               return -1;
       }
+      LOG(INFO) << "VERIFY_KNOWN_HOST: ----";
       free(hash);
       return 0;
   }
@@ -282,13 +292,13 @@ class RemoteIndexSFTPEnv
     string key, int_string;
     index_file_ = sftp_open(db_sftp_session, index.c_str(), sftp_mode, 0);
     block_file_ = sftp_open(db_sftp_session, block.c_str(), sftp_mode, 0);
-    uint64_t value;
+    uint64_t value = 0;
     valid_=true;
-    uint64_t nbytes;
-    uint64_t res;
-    uint64_t pos;
-    uint64_t offset =0;
-    uint64_t read_offset =0;
+    uint64_t nbytes = 0;
+    uint64_t res = 0;
+    uint64_t pos = 0;
+    uint64_t offset = 0;
+    uint64_t read_offset = 0;
     bool break2= false;
     if(sftp_mode == O_RDONLY)
     {
@@ -318,6 +328,7 @@ class RemoteIndexSFTPEnv
             //LOG(INFO) << pos << " Key " << key << " " << res;
             if( res || pos == read_offset )
             {
+              LOG(INFO) << "RES value: " << res;
               if(!res)
                 key_index.push_back(key);
               offset = res;

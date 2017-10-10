@@ -136,7 +136,6 @@ void DataTransformer<Dtype>::CopyPtrEntry(string* str,
   // free_->push(datum);
 }
 
-
 #ifndef CPU_ONLY
 template<typename Dtype>
 void DataTransformer<Dtype>::TransformGPU(const Datum& datum,
@@ -282,6 +281,7 @@ void DataTransformer<Dtype>::TransformPtrInt(Datum* datum,
   const bool has_mean_file = param_.has_mean_file();
   const bool has_uint8 = data.size() > 0;
   const bool has_mean_values = mean_values_.size() > 0;
+  // LOG(INFO) << "TRANSFORM PTR Int DATUM CHANNELS SIZE:" << datum->channels();
 
   CHECK_GT(datum_channels, 0);
   CHECK_GE(datum_height, crop_size);
@@ -395,7 +395,7 @@ void DataTransformer<Dtype>::TransformPtrEntry(string* str,
       LOG(ERROR) << "force_color and force_gray only for encoded datum";
     }
   }
-
+  // LOG(INFO) << "TRANSFORM PTR ENTRY DATUM CHANNELS SIZE:" << datum.channels();
   TransformPtrInt(&datum, transformed_ptr,
                   rand1, rand2, rand3);
 }
@@ -732,7 +732,6 @@ void DataTransformer<Dtype>::Transform(Blob<Dtype>* input_blob,
   CHECK_EQ(input_channels, channels);
   CHECK_GE(input_height, height);
   CHECK_GE(input_width, width);
-
 
   const Dtype scale = param_.scale();
   const bool do_mirror = param_.mirror() && Rand(2);

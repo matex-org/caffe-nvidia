@@ -291,9 +291,9 @@ void MemoryCache<Dtype>::fill(bool in_thread)
       Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
       Cache<Dtype>::dirty[j] = false;
       Cache<Dtype>::last_i++;
-	  
+
 	  //LOG(INFO)  << "Fill used "  << Cache<Dtype>::used;
-	}    
+	}
 	else
 	  break;
   }
@@ -487,15 +487,16 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
 
   Dtype * data = cache_read_buffer->data_.mutable_cpu_data();
   Dtype * label = cache_read_buffer->label_.mutable_cpu_data();
-  std::lock_guard<std::mutex> lck (this->mtx_);
-  
+  // std::lock_guard<std::mutex> lck (this->mtx_);
+  boost::lock_guard<boost::mutex> lck (this->mtx_);
+
   int image_count;
   int datum_size;
   char * bytes;
   char byte;
   int file_buffer_size = 0;
   cache_read.seekg(0, ios::beg);
-  
+
   cache_read.read( reinterpret_cast<char*>(&image_count), sizeof(int));
   cache_read.read( reinterpret_cast<char*>(&datum_size), sizeof(int));
   file_buffer_size = 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
@@ -509,10 +510,10 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
   cache_read.read( reinterpret_cast<char*>(&image_count), sizeof(int));
   // cache_read.read( (char *)&datum_size, sizeof(int));
   cache_read.read( reinterpret_cast<char*>(&datum_size), sizeof(int));
-  DLOG(INFO) << "========================!"; 
-  DLOG(INFO) << "DISK BATCH IMAGE Count:" << image_count; 
-  DLOG(INFO) << "DISK BATCH DATUM SIZE:" << datum_size; 
-  DLOG(INFO) << "DISK BATCH filebuf SIZE:" << file_buffer_size; 
+  DLOG(INFO) << "========================!";
+  DLOG(INFO) << "DISK BATCH IMAGE Count:" << image_count;
+  DLOG(INFO) << "DISK BATCH DATUM SIZE:" << datum_size;
+  DLOG(INFO) << "DISK BATCH filebuf SIZE:" << file_buffer_size;
   for (int i = 0; i < image_count; ++i)
   {
     int offset = cache_read_buffer->data_.offset(i);
@@ -543,12 +544,14 @@ void DiskCache<Dtype>::fill(bool in_thread)
   if(!open)
   {
     LOG(INFO) << "Cache Location" << Cache<Dtype>::disk_location;
-    // char * disk_loc_char = new char [Cache<Dtype>::disk_location.length()+1];
-    // strcpy(disk_loc_char, Cache<Dtype>::disk_location.c_str());
-    cache.open (Cache<Dtype>::disk_location, ios::trunc| ios::in | ios::out | ios::binary );
+    char * disk_loc_char = new char [Cache<Dtype>::disk_location.length()+1];
+    strcpy(disk_loc_char, Cache<Dtype>::disk_location.c_str());
+    // cache.open (Cache<Dtype>::disk_location, ios::trunc| ios::in | ios::out | ios::binary );
+    cache.open (disk_loc_char, ios::trunc| ios::in | ios::out | ios::binary );
     //cache.open (disk_loc_char, ios::trunc| ios::in | ios::out | ios::binary );
     // cache_read.open (Cache<Dtype>::disk_location, ios::in | ios::binary );
-    cache_read.open (Cache<Dtype>::disk_location, ios::in | ios::out | ios::binary );
+    cache_read.open (disk_loc_char, ios::in | ios::out | ios::binary );
+    // cache_read.open (Cache<Dtype>::disk_location, ios::in | ios::out | ios::binary );
     // cache_read.open (disk_loc_char, ios::in | ios::binary );
 	open = true;
     if(!cache.is_open() || !cache_read.is_open())
@@ -565,7 +568,8 @@ void DiskCache<Dtype>::fill(bool in_thread)
     Cache<Dtype>::last_i=j;
     if(Cache<Dtype>::dirty[j] == true)
     {
-      std::lock_guard<std::mutex> lck (this->mtx_);
+      // std::lock_guard<std::mutex> lck (this->mtx_);
+      boost::lock_guard<boost::mutex> lck (this->mtx_);
       //LOG(INFO) << "Disk fill";
       // Cache<Dtype>::data_layer->load_batch(cache_buffer, in_thread);
       Cache<Dtype>::data_layer->load_batch(cache_buffer);
@@ -574,9 +578,9 @@ void DiskCache<Dtype>::fill(bool in_thread)
       datum_size *= cache_buffer->data_.shape(2);
       datum_size *= cache_buffer->data_.shape(3);
       datum_size *= sizeof(Dtype);
-      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count; 
-      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size; 
-      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype)); 
+      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count;
+      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size;
+      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
 
       cache.seekg (j*(2*sizeof(int)+image_count*(datum_size+sizeof(Dtype))), ios::beg);
 
