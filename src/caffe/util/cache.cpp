@@ -12,9 +12,6 @@
 #include "caffe/util/blocking_queue.hpp"
 #include "caffe/util/blocking_deque.hpp"
 #include "caffe/util/cache.hpp"
-// #ifdef KNL
-// #include <hbwmalloc.h>
-// #endif
 
 namespace caffe {
 
@@ -45,12 +42,12 @@ void Cache<Dtype>::rate_replace_policy(int next_cache)
     //Fill in the cache -> we pass true to indicate to not use openmp in the data
     //Transformer since it will spawn more oepnmp threads
     fill(true);
-    if(full_replace)
-    {
-      //LOG(INFO) << "Filling Level " << next_cache-1 << " " << size;
-      current_shuffle_count=0;
-      full_replace=0;
-    }
+   //  if(full_replace)
+   //  {
+   //    //LOG(INFO) << "Filling Level " << next_cache-1 << " " << size;
+   //    current_shuffle_count=0;
+   //    full_replace=0;
+   //  }
   }
   else //Refill level of the cache
   {
@@ -287,15 +284,15 @@ void MemoryCache<Dtype>::fill(bool in_thread)
       // Cache<Dtype>::data_layer->load_batch(&cache[j], in_thread);
       Cache<Dtype>::data_layer->load_batch(&cache[j]);
       // Dirty bit set:
-      cache[j].dirty = false;
+      cache[j].dirty = false;  // Need this? 
       Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
       Cache<Dtype>::dirty[j] = false;
       Cache<Dtype>::last_i++;
-
-	  //LOG(INFO)  << "Fill used "  << Cache<Dtype>::used;
-	}
-	else
-	  break;
+      cache[j].count = this->reuse_count;
+      //LOG(INFO)  << "Fill used "  << Cache<Dtype>::used;
+    }
+    else
+      break;
   }
   if(this->last_i == Cache<Dtype>::size)
   {
@@ -319,7 +316,7 @@ void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
       // cache[j].data_.CopyFrom( pbatch->batch->data_ );
       cache[j].label_.CopyFrom( pbatch.batch->label_ );
       // cache[j].label_.CopyFrom( pbatch->batch->label_ );
-      pbatch.batch->dirty = true;
+      // pbatch.batch->dirty = true;
       // pbatch->batch->dirty = true;
       *pbatch.dirty = true;
       // *pbatch->dirty = true;
@@ -330,6 +327,7 @@ void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
 
       // Cache<Dtype>::pushed_to_gpu[j].store(false, boost::memory_order_relaxed);//= false;
       Cache<Dtype>::last_i++;
+      cache[j].count = this->reuse_count;
     }
     else
       break;

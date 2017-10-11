@@ -139,7 +139,7 @@ class BasePrefetchingDataLayer :
   BlockingQueue<PopBatch<Dtype> > pop_prefetch_full_;
   // BlockingDeque<Batch<Dtype>*> prefetch_full_;
   // BlockingQueue<Batch<Dtype>*> prefetch_reuse_;
-  std::queue<Batch<Dtype>*> prefetch_shuffle_;
+  // std::queue<Batch<Dtype>*> prefetch_shuffle_;
   // std::list<Batch<Dtype>*> prefetch_shuffle_;
   // BlockingQueue<Batch<Dtype>*> prefetch_shuffle_;
 
@@ -147,11 +147,11 @@ class BasePrefetchingDataLayer :
 
 #ifdef USE_DEEPMEM
   Cache<Dtype> ** caches_;
-#ifndef CPU_ONLY
+// #ifndef CPU_ONLY
   // For GPU feed/stream
-  BlockingQueue<PopBatch<Dtype>*> l0cache_free_;
-  BlockingQueue<PopBatch<Dtype>*> l0cache_full2_;
-#endif
+//   BlockingQueue<PopBatch<Dtype>*> l0cache_free_;
+//   BlockingQueue<PopBatch<Dtype>*> l0cache_full2_;
+// #endif
   vector<Dtype> historical_accuracy_;
 
   friend class Cache<Dtype>;

@@ -137,7 +137,7 @@ class RemoteIndexSFTPEnv
     }
     if(!found)
     {
-      LOG(INFO) << "Delimiter Not Found!!";
+      DLOG(INFO) << "Delimiter Not Found!!";
       memcpy(buffer,buffer+pos, max_size);
       return max_size;
     }
@@ -203,7 +203,7 @@ class RemoteIndexSFTPEnv
               free(hash);
               return -1;
       }
-      LOG(INFO) << "VERIFY_KNOWN_HOST: ----";
+      DLOG(INFO) << "VERIFY_KNOWN_HOST: ----";
       free(hash);
       return 0;
   }
