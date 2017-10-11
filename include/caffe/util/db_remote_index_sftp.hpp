@@ -86,18 +86,15 @@ class RemoteIndexSFTPEnv
       buffer = new char[buffer_size];
     }
     uint64_t res=0, total = 0;
-    // LOG(INFO) << "Here----------------1!";
 
     timer.Start();
     res = sftp_read( block_file_, buffer, image_index[current_index]);
     total+=res;
-    // LOG(INFO) << "Here----------------1!";
     while(total != image_index[current_index])
     {
       res = sftp_read( block_file_, buffer+total, image_index[current_index]-total);
       total+=res;
     }
-    // LOG(INFO) << "Here----------------2!";
     bytes_total+= image_index[current_index];
     /*if(current_index > 0 && current_index % 250 == 0)
     {
@@ -107,11 +104,8 @@ class RemoteIndexSFTPEnv
       //LOG(INFO) << "Inst. "  << (((double)total)/timer.Seconds())/(1024*1024) << "MB/s Speed ";
     }*/
     value = string(buffer, image_index[current_index]);
-    // LOG(INFO) << "Here----------------2a!";
     //LOG(INFO) << total << "/" << image_index[current_index] << " "  << value.size() << " " << key_index[current_index];
     key = key_index[current_index++];//std::to_string(current_index++);
-
-    // LOG(INFO) << "Here----------------3!";
   }
 
   void put(string& key, string& value)
@@ -127,7 +121,15 @@ class RemoteIndexSFTPEnv
     {
       if(buffer[i+pos] == delim)
       {
-        key = string(buffer+pos, i);
+        string tmp(string(buffer+pos, i));
+        key = "";
+        if(tmp[0] == '\0') {
+           LOG(INFO) << "NULL Character Found! ";
+           key = string(tmp.begin() +1, tmp.end());
+        }
+        else
+          key = tmp;
+        LOG(INFO) << "KEY VAL: " << key;
         found = true;
         pos+=i+1;
         break;
@@ -135,7 +137,7 @@ class RemoteIndexSFTPEnv
     }
     if(!found)
     {
-      // LOG(INFO) << "Delimiter Not Found!!";
+      LOG(INFO) << "Delimiter Not Found!!";
       memcpy(buffer,buffer+pos, max_size);
       return max_size;
     }
@@ -300,67 +302,84 @@ class RemoteIndexSFTPEnv
     uint64_t offset = 0;
     uint64_t read_offset = 0;
     bool break2= false;
+    char last_char = ',';
     if(sftp_mode == O_RDONLY)
     {
       //while(!index_stream_.eof())
       while(1)
       {
-        //index_stream.ignore(numeric_limits<streamsize>::max(),':');
-        read_offset = offset;
-        nbytes = sftp_read(index_file_, index_buffer+read_offset, index_buffer_size-(read_offset));
-        read_offset += nbytes;
-        while(nbytes != 0 && (index_buffer_size-(read_offset)) > 0)
-        {
+          //index_stream.ignore(numeric_limits<streamsize>::max(),':');
+          read_offset = offset;
           nbytes = sftp_read(index_file_, index_buffer+read_offset, index_buffer_size-(read_offset));
           read_offset += nbytes;
-        }
-        if(read_offset == 0)
-          return 0;
+          while(nbytes != 0 && (index_buffer_size-(read_offset)) > 0)
+          {
+            nbytes = sftp_read(index_file_, index_buffer+read_offset, index_buffer_size-(read_offset));
+            read_offset += nbytes;
+          }
+          if(read_offset == 0) {
+            LOG(INFO) << "Image Index Key Size: " << key_index.size();
+            LOG(INFO) << "Image Index Size: " << image_index.size();
+            return 0;
+          }
+          else
+            break2 = false;
 
-        pos = 0;
+          pos = 0;
 
         offset=0;
         while(1)
         {
-          if(!break2)
-          {
-            res = helper_getline(index_buffer,key,':', pos, read_offset-pos);
+          // if(!break2)
+          // {
+          if(last_char == ',') {
+            // key = "";
+            res = helper_getline(index_buffer,key,':', pos
+                , ((read_offset-pos)? (read_offset - pos):1));
             //LOG(INFO) << pos << " Key " << key << " " << res;
-            if( res || pos == read_offset )
+            if( res) // || pos == read_offset )
             {
-              LOG(INFO) << "RES value: " << res;
-              if(!res)
-                key_index.push_back(key);
+              // LOG(INFO) << "RES value: " << res;
+              // if(!res)
+              //   key_index.push_back(key);
               offset = res;
               break;
             }
 
             key_index.push_back(key);
+            last_char = ':';
+          // }
+          // if(read_offset-pos == 0)
+          // {
+          //   offset=0;
+          //   break;
+          // }
           }
-          if(read_offset-pos == 0)
-          {
-            offset=0;
-            break;
-          }
-          res = helper_getline(index_buffer,int_string,',', pos, read_offset-pos);
-          if( res || pos == read_offset )
-          {
-            offset = res;
-            if(!res)
+          if( last_char == ':') {
+            // int_string = "";
+            res = helper_getline(index_buffer,int_string,',', pos
+              , ((read_offset-pos) ? (read_offset - pos):1));
+            if(res) //|| pos == read_offset )
             {
-              value = std::strtoull(int_string.c_str(),NULL,0);
-              //LOG(INFO) << pos << " Val2 " << value << "   " << read_offset;
-              image_index.push_back(value);
+              offset = res;
+              // if(!res)
+              // {
+              //   value = std::strtoull(int_string.c_str(),NULL,0);
+              //   //LOG(INFO) << pos << " Val2 " << value << "   " << read_offset;
+              //   image_index.push_back(value);
+              //   break;
+              // }
+              // break2=true;
               break;
             }
-            break2=true;
-            break;
+          // else
+          //   break2=false;
+            value = std::strtoull(int_string.c_str(),NULL,0);
+            //LOG(INFO) << pos << " Val " << value << "   " << read_offset;
+            image_index.push_back(value);
+            last_char = ',';
           }
-          else
-            break2=false;
-          value = std::strtoull(int_string.c_str(),NULL,0);
-          //LOG(INFO) << pos << " Val " << value << "   " << read_offset;
-          image_index.push_back(value);
+
           if(read_offset-pos == 0)
           {
             offset=0;
@@ -370,6 +389,8 @@ class RemoteIndexSFTPEnv
         }
       }
     }
+    LOG(INFO) << "Image Index Key Size: " << key_index.size();
+    LOG(INFO) << "Image Index Size: " << image_index.size();
     return 0;
   }
   void close()
