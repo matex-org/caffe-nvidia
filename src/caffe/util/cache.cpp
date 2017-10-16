@@ -158,8 +158,8 @@ void MemoryCache<Dtype>::create( void * ptr, bool * ptr2
   Cache<Dtype>::last_i = 0;
   Cache<Dtype>::slot = 0;
   //Initially the cache is dirty and needs to be filled out
-  for(int i=0; i< Cache<Dtype>::size; ++i) {
-    cache[i].dirty = true;
+  for(int i=0; i< Cache<Dtype>::size; i++) {
+    // cache[i].dirty = true;
     Cache<Dtype>::dirty[i] = true;
     // Cache<Dtype>::pushed_to_gpu[i].store(false,boost::memory_order_relaxed); //= false;
   }
@@ -191,10 +191,6 @@ PopBatch<Dtype> MemoryCache<Dtype>::pop()
   //This thread is suppose to refill the slot, but managed not to -> refill the
   //State above you
   while(Cache<Dtype>::dirty[my_slot])
-  // typedef MemoryCache<Dtype> * MemCacheType;
-  // MemCacheType memcache;
-  // if((memcache = dynamic_cast<MemCacheType>(
-  //## while(cache[my_slot].dirty)
   {
     if(Cache<Dtype>::prev && this->prev->prefetch == Cache<Dtype>::prefetch)
     {
@@ -281,7 +277,7 @@ void MemoryCache<Dtype>::fill(bool in_thread)
       // Cache<Dtype>::data_layer->load_batch(&cache[j], in_thread);
       Cache<Dtype>::data_layer->load_batch(&cache[j]);
       // Dirty bit set:
-      cache[j].dirty = false;  // Need this?
+      // cache[j].dirty = false;  // Need this?
       Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
       Cache<Dtype>::dirty[j] = false;
       Cache<Dtype>::last_i++;
@@ -311,10 +307,10 @@ void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
       cache[j].data_.CopyFrom( pbatch.batch->data_ );
       cache[j].label_.CopyFrom( pbatch.batch->label_ );
       *pbatch.dirty = true;
+	  pbatch.batch->dirty = true;
       Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
       Cache<Dtype>::dirty[j] = false;
       cache[j].dirty = false;
-
       Cache<Dtype>::last_i++;
       cache[j].count = this->reuse_count;
     }
@@ -341,23 +337,28 @@ void MemoryCache<Dtype>::reshape(vector<int> * top_shape, vector<int> * label_sh
   }
 }
 template <typename Dtype>
-void MemoryCache<Dtype>::mutate_data(bool labels, const int level)
+void MemoryCache<Dtype>::mutate_data(bool labels, cons int level)
 {
   for(int i=0; i< Cache<Dtype>::size; i++) {
       cache[i].data_.mutable_cpu_data();
-    if (labels) {
+  }
+  if (labels) {
+    for(int i=0; i< Cache<Dtype>::size; i++) {
       cache[i].label_.mutable_cpu_data();
     }
-    // cache[i].count_ = 0;
   }
 #ifndef CPU_ONLY
  if(level == 0) {
    if (Caffe::mode() == Caffe::GPU) {
       for(int i=0; i< Cache<Dtype>::size; i++) {
         cache[i].data_.mutable_gpu_data();
-        if (labels) {
+	  }
+      if (labels) {
+		for(int i=0; i< Cache<Dtype>::size; i++) {
           cache[i].label_.mutable_gpu_data();
         }
+	  }
+	  for(int i=0; i< Cache<Dtype>::size; i++) {
         CUDA_CHECK(cudaEventCreate(&cache[i].copied_));
       }
    }
@@ -413,7 +414,6 @@ void DiskCache<Dtype>::create( void * ptr, bool * ptr2
   Cache<Dtype>::prefetch = thread_safe;
   Cache<Dtype>::full_replace = false;
   Cache<Dtype>::dirty = ptr2;
-  // Cache<Dtype>::pushed_to_gpu = static_cast<boost::atomic<volatile bool>*>(ptr3);
   Cache<Dtype>::last_i = 0;
   Cache<Dtype>::slot = 0;
   for(int i=0; i< Cache<Dtype>::size; i++) {
@@ -481,7 +481,7 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
   char byte;
   int file_buffer_size = 0;
   cache_read.seekg(0, ios::beg);
-
+  
   cache_read.read( reinterpret_cast<char*>(&image_count), sizeof(int));
   cache_read.read( reinterpret_cast<char*>(&datum_size), sizeof(int));
   file_buffer_size = 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
@@ -493,10 +493,10 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
   cache_read.read( reinterpret_cast<char*>(&image_count), sizeof(int));
   // cache_read.read( (char *)&datum_size, sizeof(int));
   cache_read.read( reinterpret_cast<char*>(&datum_size), sizeof(int));
-  DLOG(INFO) << "========================!";
-  DLOG(INFO) << "DISK BATCH IMAGE Count:" << image_count;
-  DLOG(INFO) << "DISK BATCH DATUM SIZE:" << datum_size;
-  DLOG(INFO) << "DISK BATCH filebuf SIZE:" << file_buffer_size;
+  DLOG(INFO) << "========================!"; 
+  DLOG(INFO) << "DISK BATCH IMAGE Count:" << image_count; 
+  DLOG(INFO) << "DISK BATCH DATUM SIZE:" << datum_size; 
+  DLOG(INFO) << "DISK BATCH filebuf SIZE:" << file_buffer_size; 
   for (int i = 0; i < image_count; ++i)
   {
     int offset = cache_read_buffer->data_.offset(i);
@@ -507,7 +507,6 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
     //for (int k = 0; k < sizeof(Dtype); ++k)
     cache_read.read( bytes, sizeof(Dtype));
   }
-
   //current_offset++;
   //Cache<Dtype>::used++;
 
@@ -557,9 +556,9 @@ void DiskCache<Dtype>::fill(bool in_thread)
       datum_size *= cache_buffer->data_.shape(2);
       datum_size *= cache_buffer->data_.shape(3);
       datum_size *= sizeof(Dtype);
-      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count;
-      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size;
-      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
+      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count; 
+      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size; 
+      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype)); 
 
       cache.seekg (j*(2*sizeof(int)+image_count*(datum_size+sizeof(Dtype))), ios::beg);
 
@@ -633,10 +632,11 @@ void DiskCache<Dtype>::refill(Cache<Dtype> * next_cache)
       label = pbatch.batch->label_.mutable_cpu_data();
       //cache_buffer->data_.CopyFrom( batch->data_ );
       //cache_buffer->label_.CopyFrom( batch->label_ );
-      int image_count = pbatch.batch->data_.shape(0);
-      int datum_size = pbatch.batch->data_.shape(1);
-      datum_size *= pbatch.batch->data_.shape(2);
-      datum_size *= pbatch.batch->data_.shape(3);
+
+      int image_count = batch.batch->data_.shape(0);
+      int datum_size = batch.batch->data_.shape(1);
+      datum_size *= batch.batch->data_.shape(2);
+      datum_size *= batch.batch->data_.shape(3);
       datum_size *= sizeof(Dtype);
 
       cache.write( (char *)&image_count, sizeof(int));

@@ -55,18 +55,10 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   LOG(INFO) << "Env Prefetch Count: " << prefetch_count;
   LOG(INFO) << "Env Reuse Count: " << reuse_count;
 
-  // Batch<Dtype> prefetch_tmp[prefetch_count];
-  // prefetch_ = &prefetch_tmp[0];
-
-  // std::vector<Batch<Dtype> >::iterator itr_p = prefetch_.begin();
-
   for(std::size_t i = 0; i < prefetch_count; ++i) {
-    // prefetch_.emplace_back(NULL);
     prefetch_.push_back(new Batch<Dtype>());
   }
 
-// #ifdef USE_DEEPMEM
-  //LOG(INFO) << "Cache size" << param.data_param().cache_size(0);
   cache_size_ = param.data_param().cache_size();
   LOG(INFO) << "Caches " << cache_size_;
   DLOG(INFO) << "BPDL Initialization";

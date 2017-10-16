@@ -105,8 +105,8 @@ class BasePrefetchingDataLayer :
 #ifdef USE_DEEPMEM
   bool prefetch;
   void refill_cache(int current_cache);
-  bool cache_shuffle;
-  bool shuffle_batches;
+  // bool cache_shuffle;
+  // bool shuffle_batches;
 #endif
   virtual void InternalThreadEntry();
 // #ifdef USE_DEEPMEM

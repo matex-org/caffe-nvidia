@@ -74,7 +74,8 @@ class RemoteIndexSFTPEnv
 
   void get_next(string& key, string& value)
   {
-    boost::lock_guard<boost::mutex> lck (this->mtx_);
+    boost::lock_guard<boost::mutex> lck(mtx_);
+
     if(current_index >= image_index.size())
     {
       valid_=false;
@@ -300,7 +301,7 @@ class RemoteIndexSFTPEnv
     valid_=true;
     uint64_t nbytes = 0;
     uint64_t res = 0;
-    uint64_t pos = 0;
+    uint64_t pos = 0 ;
     uint64_t offset = 0;
     uint64_t read_offset = 0;
     bool break2= false;
@@ -387,7 +388,7 @@ class RemoteIndexSFTPEnv
             offset=0;
             break;
           }
-          offset=0;
+          // offset=0;
         }
       }
     }
@@ -418,7 +419,7 @@ class RemoteIndexSFTPEnv
 
   void reset() { valid_=true; sftp_seek(index_file_, 0); sftp_seek(block_file_, 0); current_index =0;  }
 
-  public:
+  protected:
   boost::mutex mtx_;
 
   private:
