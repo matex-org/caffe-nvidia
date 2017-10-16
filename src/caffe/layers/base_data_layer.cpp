@@ -43,7 +43,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       Batch<Dtype> prefetch_[PREFETCH_COUNT];
 #else
       //prefetch_free_(), prefetch_full_(), prefetch_reuse_(), prefetch_shuffle_() {
-      prefetch_free_(), prefetch_full_(), prefetch_shuffle_() {
+      prefetch_free_(), prefetch_full_() {
 
   const char* env_prefetch_count = std::getenv("ENV_PREFETCH_COUNT");
   const char* env_reuse_count = std::getenv("ENV_REUSE_COUNT");
@@ -70,7 +70,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   cache_size_ = param.data_param().cache_size();
   LOG(INFO) << "Caches " << cache_size_;
   DLOG(INFO) << "BPDL Initialization";
-  prefetch=false;
+  prefetch= true;// false;
   // shuffle_batches = false; // Default value. TODO: change this!
   // DLOG(INFO) << "CacheSize: " << cache_size_;
   if(cache_size_)
@@ -190,7 +190,7 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   }
 #ifdef USE_DEEPMEM
   for (int i = 0; i < cache_size_; ++i) {
-    caches_[i]->mutate_data(this->output_labels_);
+    this->caches_[i]->mutate_data(this->output_labels_, i);
   }
 #endif
 #ifndef CPU_ONLY
@@ -419,7 +419,8 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
   DLOG(INFO) << "FCPU Call";
 #ifdef USE_DEEPMEM
   Batch<Dtype> * batch;
-  PopBatch<Dtype>* p_batch;
+  // PopBatch<Dtype>* pbatch;
+  PopBatch<Dtype> pbatch;
   //If there are any caches
   DLOG(INFO) << "FCPU Call DEEPMEM";
   if(cache_size_)
@@ -431,9 +432,9 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
       //Refill before poping using the policy we have
     //   (caches_[0]->*(caches_[0]->local_refill_policy))(1);
     // }
-    // p_batch = l0cache_full2_.pop("Cache not ready yet");
-    p_batch = pop_prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(pop cache)");
-    batch = p_batch->batch;
+    // pbatch = l0cache_full2_.pop("Cache not ready yet");
+    pbatch = pop_prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(pop cache)");
+    batch = pbatch.batch;
   }
   else //Use the original unmodified code to get a batch
   {
@@ -607,13 +608,13 @@ INSTANTIATE_CLASS(BasePrefetchingDataLayer);
 //####        DLOG(INFO) << "l0CACHE_FREE_SIZE:" << l0cache_free_.size();
 //####
 //####        if(!l0cache_free_.peek()->batch->dirty) {
-//####        PopBatch<Dtype> *p_batch = l0cache_free_.pop("Cache pop");
-//####        // *p_batch->dirty = false;
-//####        // p_batch = caches_[0]->pop();
-//####        Batch<Dtype>* batch = p_batch->batch;
+//####        PopBatch<Dtype> *pbatch = l0cache_free_.pop("Cache pop");
+//####        // *pbatch->dirty = false;
+//####        // pbatch = caches_[0]->pop();
+//####        Batch<Dtype>* batch = pbatch->batch;
 //#####ifndef CPU_ONLY
-//####        // bool dty = (bool)*p_batch->dirty;
-//####        // bool pgpu = (bool)p_batch->pushed_to_gpu->load(boost::memory_order_release);
+//####        // bool dty = (bool)*pbatch->dirty;
+//####        // bool pgpu = (bool)pbatch->pushed_to_gpu->load(boost::memory_order_release);
 //####        // if(!pgpu && !dty) {
 //####          if (Caffe::mode() == Caffe::GPU) {
 //####            batch->data_.data()->async_gpu_push();
@@ -626,9 +627,9 @@ INSTANTIATE_CLASS(BasePrefetchingDataLayer);
 //####            CUDA_CHECK(cudaEventRecord(batch->copied_, stream));
 //####            CUDA_CHECK(cudaStreamSynchronize(stream));
 //####          }
-//####          // *p_batch->pushed_to_gpu = true;
+//####          // *pbatch->pushed_to_gpu = true;
 //####          // batch->count_ += 1;
-//####          l0cache_full2_.push(p_batch);
+//####          l0cache_full2_.push(pbatch);
 //####          DLOG(INFO) << "l0CACHE_FULL2_SIZE:" << l0cache_full2_.size();
 //####        // }
 //#####endif

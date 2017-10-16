@@ -44,6 +44,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <utility>
 #include <vector>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/locks.hpp>
 
 #include "caffe/util/db.hpp"
 #include "caffe/util/benchmark.hpp"
@@ -72,7 +74,7 @@ class RemoteIndexSFTPEnv
 
   void get_next(string& key, string& value)
   {
-
+    boost::lock_guard<boost::mutex> lck (this->mtx_);
     if(current_index >= image_index.size())
     {
       valid_=false;
@@ -415,6 +417,9 @@ class RemoteIndexSFTPEnv
   bool valid(){ return valid_; };
 
   void reset() { valid_=true; sftp_seek(index_file_, 0); sftp_seek(block_file_, 0); current_index =0;  }
+
+  public:
+  boost::mutex mtx_;
 
   private:
   ssh_session db_ssh_session;
