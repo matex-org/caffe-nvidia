@@ -132,7 +132,7 @@ class RemoteIndexSFTPEnv
         }
         else
           key = tmp;
-        LOG(INFO) << "KEY VAL: " << key;
+        //DLOG(INFO) << "KEY VAL: " << key;
         found = true;
         pos+=i+1;
         break;

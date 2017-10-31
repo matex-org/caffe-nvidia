@@ -337,7 +337,7 @@ void MemoryCache<Dtype>::reshape(vector<int> * top_shape, vector<int> * label_sh
   }
 }
 template <typename Dtype>
-void MemoryCache<Dtype>::mutate_data(bool labels, cons int level)
+void MemoryCache<Dtype>::mutate_data(bool labels, const int level)
 {
   for(int i=0; i< Cache<Dtype>::size; i++) {
       cache[i].data_.mutable_cpu_data();
@@ -481,7 +481,7 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
   char byte;
   int file_buffer_size = 0;
   cache_read.seekg(0, ios::beg);
-  
+
   cache_read.read( reinterpret_cast<char*>(&image_count), sizeof(int));
   cache_read.read( reinterpret_cast<char*>(&datum_size), sizeof(int));
   file_buffer_size = 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
@@ -493,10 +493,10 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
   cache_read.read( reinterpret_cast<char*>(&image_count), sizeof(int));
   // cache_read.read( (char *)&datum_size, sizeof(int));
   cache_read.read( reinterpret_cast<char*>(&datum_size), sizeof(int));
-  DLOG(INFO) << "========================!"; 
-  DLOG(INFO) << "DISK BATCH IMAGE Count:" << image_count; 
-  DLOG(INFO) << "DISK BATCH DATUM SIZE:" << datum_size; 
-  DLOG(INFO) << "DISK BATCH filebuf SIZE:" << file_buffer_size; 
+  DLOG(INFO) << "========================!";
+  DLOG(INFO) << "DISK BATCH IMAGE Count:" << image_count;
+  DLOG(INFO) << "DISK BATCH DATUM SIZE:" << datum_size;
+  DLOG(INFO) << "DISK BATCH filebuf SIZE:" << file_buffer_size;
   for (int i = 0; i < image_count; ++i)
   {
     int offset = cache_read_buffer->data_.offset(i);
@@ -556,9 +556,9 @@ void DiskCache<Dtype>::fill(bool in_thread)
       datum_size *= cache_buffer->data_.shape(2);
       datum_size *= cache_buffer->data_.shape(3);
       datum_size *= sizeof(Dtype);
-      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count; 
-      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size; 
-      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype)); 
+      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count;
+      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size;
+      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
 
       cache.seekg (j*(2*sizeof(int)+image_count*(datum_size+sizeof(Dtype))), ios::beg);
 
@@ -633,10 +633,10 @@ void DiskCache<Dtype>::refill(Cache<Dtype> * next_cache)
       //cache_buffer->data_.CopyFrom( batch->data_ );
       //cache_buffer->label_.CopyFrom( batch->label_ );
 
-      int image_count = batch.batch->data_.shape(0);
-      int datum_size = batch.batch->data_.shape(1);
-      datum_size *= batch.batch->data_.shape(2);
-      datum_size *= batch.batch->data_.shape(3);
+      int image_count = pbatch.batch->data_.shape(0);
+      int datum_size = pbatch.batch->data_.shape(1);
+      datum_size *= pbatch.batch->data_.shape(2);
+      datum_size *= pbatch.batch->data_.shape(3);
       datum_size *= sizeof(Dtype);
 
       cache.write( (char *)&image_count, sizeof(int));
