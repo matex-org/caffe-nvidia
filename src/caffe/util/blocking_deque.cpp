@@ -17,7 +17,7 @@ class BlockingDeque<T>::sync {
 
 template<typename T>
 BlockingDeque<T>::BlockingDeque()
-    : sync_(new sync()) {
+    : sync_(new sync()), count_(), local_count_() {
 }
 
 template<typename T>
@@ -64,7 +64,11 @@ T BlockingDeque<T>::pop(const string& log_on_wait) {
   // while (queue_.empty()) {
   while (deque_.empty()) {
     if (!log_on_wait.empty()) {
-      LOG_EVERY_N(INFO, 1000)<< log_on_wait;
+      ++local_count_;
+      if(local_count_ == 1000) {
+        ++count_; local_count_ = 0;
+      }
+      LOG_EVERY_N(INFO, 1000)<< log_on_wait << " , Wait Count: " << count_;
     }
     sync_->condition_.wait(lock);
   }

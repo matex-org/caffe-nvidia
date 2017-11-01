@@ -46,9 +46,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vector>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/locks.hpp>
+#include <cstdlib>
 
 #include "caffe/util/db.hpp"
 #include "caffe/util/benchmark.hpp"
+#include "caffe/util/blocking_queue.hpp"
 
 namespace caffe { namespace db {
 
@@ -90,7 +92,7 @@ class RemoteIndexSFTPEnv
     }
     uint64_t res=0, total = 0;
 
-    timer.Start();
+    // timer.Start();
     res = sftp_read( block_file_, buffer, image_index[current_index]);
     total+=res;
     while(total != image_index[current_index])
@@ -99,13 +101,13 @@ class RemoteIndexSFTPEnv
       total+=res;
     }
     bytes_total+= image_index[current_index];
-    /*if(current_index > 0 && current_index % 250 == 0)
+    if(current_index > 0 && current_index % 1000 == 0)
     {
-      LOG(INFO) << "Here----------------2aa!";
       LOG(INFO) << "Current Index: " << current_index;
-      LOG(INFO) << "Avg. "  << (((double)bytes_total)/total_timer.SecondsCont())/(1024*1024) << "MB/s Speed ";
-      //LOG(INFO) << "Inst. "  << (((double)total)/timer.Seconds())/(1024*1024) << "MB/s Speed ";
-    }*/
+      LOG(INFO) << "Avg. "  << (((double)bytes_total)/total_timer.Seconds())/(1024*1024) << "MB/s Speed ";
+      total_timer.Start();
+      bytes_total = 0;
+    }
     value = string(buffer, image_index[current_index]);
     //LOG(INFO) << total << "/" << image_index[current_index] << " "  << value.size() << " " << key_index[current_index];
     key = key_index[current_index++];//std::to_string(current_index++);
@@ -451,7 +453,7 @@ class RemoteIndexSFTPCursor : public Cursor {
     SeekToFirst();
   }
   virtual ~RemoteIndexSFTPCursor() {
-    env_->close();
+    // env_->close();
   }
   virtual void SeekToFirst() { env_->reset(); env_->get_next(key_, value_); }
   virtual void Next() { env_->get_next(key_, value_); }

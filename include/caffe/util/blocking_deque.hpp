@@ -38,6 +38,8 @@ class BlockingDeque {
 
   std::deque<T> deque_;
   shared_ptr<sync> sync_;
+  unsigned int count_;
+  unsigned int local_count_;
 
 DISABLE_COPY_AND_ASSIGN(BlockingDeque);
 };
