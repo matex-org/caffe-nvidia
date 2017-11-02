@@ -15,9 +15,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   typedef MemoryCache<Dtype> MemCacheType;
   Batch<Dtype> * batch;
   volatile bool * dirty;
-  // volatile bool *dirtybit;
   PopBatch<Dtype> pbatch;
-  // DLOG(INFO) << "FGPU Call DEEPMEM";
   if(this->cache_size_)
   {
     //Do we handle the refill on l1 cache?
@@ -27,12 +25,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
       //Refill before poping using the policy we have
       (caches_[0]->*(caches_[0]->local_refill_policy))(1);
     }
-    // DLOG(INFO) << "l0CACHE_FULL2_SIZE(beforepop_cu):" << l0cache_full2_.size();
     DLOG(INFO) << "PREFETCH_FULL_SIZE(beforepop_cu):" << prefetch_full_.size();
-    // p_batch = l0cache_full2_.pop("Cache not ready yet");
-    // p_batch = prefetch_full_.pop("Cache not ready yet");
-    // batch = p_batch->batch;
-    // batch = prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(gpu-cache)");
     pbatch = pop_prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(gpu-cache)");
     batch = pbatch.batch;
   }
@@ -107,22 +100,3 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
 INSTANTIATE_LAYER_GPU_FORWARD(BasePrefetchingDataLayer);
 
 }  // namespace caffe
-
-    // } else if(batch->shuffle_count > 0 && shuffle_batches == true) {
-      // non-blocking queue
-    //  prefetch_shuffle_.push(batch);
-// #ifndef CPU_ONLY
-//     cudaStream_t stream;
-//     if (Caffe::mode() == Caffe::GPU) {
-//       CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
-//     }
-// #endif
-
-    //int accuracySize = historical_accuracy.size();
-    //for(int i=0; i< accuracySize; i++)
-    //  LOG(INFO) << "ACC" << historical_accuracy[i];
-    // Here for CPU we do transformation
-    //if (Caffe::mode() == Caffe::CPU) {
-    // if (!prefetch) {
-    //   this->GetBatch();
-    // }

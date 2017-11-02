@@ -169,9 +169,6 @@ template <typename Dtype>
 bool MemoryCache<Dtype>::empty()
 {
   //int bounds = Cache<Dtype>::used.fetch_add(0, boost::memory_order_relaxed);
-  //LOG(INFO)  << bounds << " " << Cache<Dtype>::size;
-  //LOG(INFO) << " empty  " << Cache<Dtype>::used;
-
   return Cache<Dtype>::used == Cache<Dtype>::size;
 }
 
@@ -211,10 +208,8 @@ PopBatch<Dtype> MemoryCache<Dtype>::pop()
   PopBatch<Dtype> pbatch;
   //Data we are sending out
   pbatch.batch = &cache[my_slot];
-  // pbatch->batch = &cache[my_slot];
   //Structure to indicate that we are dirty once the popper copies the data
   pbatch.dirty = &Cache<Dtype>::dirty[my_slot];
-  // pbatch.dirty = &(this->dirty[my_slot]);
 
   return pbatch;
 }
@@ -298,12 +293,10 @@ void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
   PopBatch<Dtype> pbatch;
 
   for (int j = Cache<Dtype>::last_i; j < Cache<Dtype>::size; ++j) {
-    //LOG(INFO) << position;
     Cache<Dtype>::last_i=j;
     if(Cache<Dtype>::dirty[j] == true)
-    // if(cache[j].dirty == true)
     {
-      pbatch = next_cache->pop(); //->cache_full_.pop("Data layer cache queue empty");
+      pbatch = next_cache->pop();
       cache[j].data_.CopyFrom( pbatch.batch->data_ );
       cache[j].label_.CopyFrom( pbatch.batch->label_ );
       *pbatch.dirty = true;
@@ -418,7 +411,6 @@ void DiskCache<Dtype>::create( void * ptr, bool * ptr2
   Cache<Dtype>::slot = 0;
   for(int i=0; i< Cache<Dtype>::size; i++) {
     Cache<Dtype>::dirty[i] = true;
-    // Cache<Dtype>::pushed_to_gpu[i].store(false, boost::memory_order_relaxed); //= false;
   }
 
   //if(thread_safe)
@@ -438,7 +430,6 @@ void DiskCache<Dtype>::create( void * ptr, bool * ptr2
 template <typename Dtype>
 bool DiskCache<Dtype>::empty()
 {
-  //return current_offset == Cache<Dtype>::size;
   return Cache<Dtype>::used == Cache<Dtype>::size;
 }
 template <typename Dtype>
@@ -627,7 +618,7 @@ void DiskCache<Dtype>::refill(Cache<Dtype> * next_cache)
     Cache<Dtype>::last_i=j;
     if(Cache<Dtype>::dirty[j] == true)
     {
-      pbatch = next_cache->pop(); //->cache_full_.pop("Data layer cache queue empty");
+      pbatch = next_cache->pop();
       data = pbatch.batch->data_.mutable_cpu_data();
       label = pbatch.batch->label_.mutable_cpu_data();
       //cache_buffer->data_.CopyFrom( batch->data_ );
@@ -696,18 +687,12 @@ void DiskCache<Dtype>::mutate_data(bool labels, const int level)
     //}
   }
 #ifndef CPU_ONLY
-  //for(int i=0; i< Cache<Dtype>::size; i++) {
-     // cache[i].data_.mutable_gpu_data();
-    //}
  if (Caffe::mode() == Caffe::GPU) {
     cache_buffer->data_.mutable_gpu_data();
     cache_read_buffer->data_.mutable_gpu_data();
     if (labels) {
       cache_buffer->label_.mutable_gpu_data();
       cache_read_buffer->label_.mutable_gpu_data();
-    //for(int i=0; i< Cache<Dtype>::size; i++) {
-      //cache_buffer->label_.mutable_gpu_data();
-    //}
     }
     CUDA_CHECK(cudaEventCreate(&cache_buffer->copied_));
     CUDA_CHECK(cudaEventCreate(&cache_read_buffer->copied_));

@@ -105,8 +105,6 @@ class BasePrefetchingDataLayer :
 #ifdef USE_DEEPMEM
   bool prefetch;
   void refill_cache(int current_cache);
-  // bool cache_shuffle;
-  // bool shuffle_batches;
 #endif
   virtual void InternalThreadEntry();
 // #ifdef USE_DEEPMEM
@@ -115,15 +113,12 @@ class BasePrefetchingDataLayer :
   virtual void load_batch(Batch<Dtype>* batch) = 0;
 // #endif
 
-// virtual void GetBatch();
 #ifdef USE_DEEPMEM
   void rate_replace_policy(int next_cache);
   void thread_rate_replace_policy(int next_cache);
 
   GenRandNumbers randomGen;
 
-  // std::size_t reuse_count;
-  // std::size_t prefetch_count;
   int reuse_count;
   int prefetch_count;
 #endif
@@ -142,11 +137,6 @@ class BasePrefetchingDataLayer :
 
 #ifdef USE_DEEPMEM
   Cache<Dtype> ** caches_;
-// #ifndef CPU_ONLY
-  // For GPU feed/stream
-//   BlockingQueue<PopBatch<Dtype>*> l0cache_free_;
-//   BlockingQueue<PopBatch<Dtype>*> l0cache_full2_;
-// #endif
   vector<Dtype> historical_accuracy_;
 
   friend class Cache<Dtype>;
