@@ -129,6 +129,8 @@ class Solver {
 #ifdef USE_DEEPMEM
   std::deque<Dtype> validation_accuracy_;
   int reuse_count;
+  int maxreuse_count;
+  bool test_performed;
 #endif
 
   // The root solver that holds root nets (actually containing shared layers)

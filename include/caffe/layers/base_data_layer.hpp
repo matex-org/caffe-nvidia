@@ -85,7 +85,7 @@ class BasePrefetchingDataLayer :
       const vector<Blob<Dtype>*>& top);
 
   virtual void PassParameterToLayer(const int value) {
-    LOG(INFO) << "New Reuse Count: " << value;
+    LOG(INFO) << "Data Layer New Reuse Count: " << value;
     this->reuse_count = value;
   }
 

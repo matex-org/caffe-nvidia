@@ -103,7 +103,7 @@ class RemoteIndexSFTPEnv
     bytes_total+= image_index[current_index];
     if(current_index > 0 && current_index % 1000 == 0)
     {
-      LOG(INFO) << "Current Index: " << current_index;
+      DLOG(INFO) << "Current Index: " << current_index;
       LOG(INFO) << "Avg. "  << (((double)bytes_total)/total_timer.Seconds())/(1024*1024) << "MB/s Speed ";
       total_timer.Start();
       bytes_total = 0;

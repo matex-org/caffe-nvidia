@@ -31,6 +31,10 @@ Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
       requested_early_exit_(false),
       scale_on_apply_(1.0),
       iteration_timer_(), iterations_last_() {
+#ifdef USE_DEEPMEM
+  reuse_count = 0;
+  test_performed = false;
+#endif
   Init(param);
 }
 
@@ -42,6 +46,10 @@ Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
       iteration_timer_(), iterations_last_() {
   SolverParameter param;
   ReadSolverParamsFromTextFileOrDie(param_file, &param);
+#ifdef USE_DEEPMEM
+  reuse_count = 0;
+  test_performed = false;
+#endif
   Init(param);
 }
 
@@ -208,7 +216,9 @@ void Solver<Dtype>::Step(int iters) {
   iteration_timer_.Start();
 
   const char* env_reuse_count = std::getenv("ENV_REUSE_COUNT");
+  const char* env_maxreuse_count = std::getenv("ENV_MAXREUSE_COUNT");
   reuse_count = (env_reuse_count != NULL) ? atoi (env_reuse_count):0;
+  maxreuse_count = (env_maxreuse_count != NULL) ? atoi (env_maxreuse_count):20;
 
   for (int i = 0; i < callbacks_.size(); ++i) {
     // we need to sync all threads before starting, otherwise some cuda init,
@@ -296,17 +306,20 @@ void Solver<Dtype>::Step(int iters) {
     // DUMMY TEST: TODO remove this
 
     //if(iter_ == 100)
-    if(validation_accuracy_.size() > 1) {
+    if(validation_accuracy_.size() > 1 && test_performed) {
       // If validation accuracy slope negative
       if((validation_accuracy_[1] - validation_accuracy_[0]) < 0){
         reuse_count = 0;
         this->net_->PassParameterToLayer("data", reuse_count);
         validation_accuracy_.pop_front();
+        test_performed = false;
       }
       else {
-        reuse_count += 1;
+        if(reuse_count < maxreuse_count)
+          reuse_count += 1;
         this->net_->PassParameterToLayer("data", reuse_count);
         validation_accuracy_.pop_front();
+        test_performed = false;
       }
     }
 
@@ -471,6 +484,7 @@ void Solver<Dtype>::Test(const int test_net_id) {
       }
     }
   }
+  test_performed = true;
 }
 
 template <typename Dtype>
