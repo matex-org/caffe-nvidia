@@ -366,6 +366,15 @@ ifeq ($(USE_PNETCDF), 1)
 	COMMON_FLAGS += -DUSE_PNETCDF
 endif
 
+ifeq ($(CAFFE_FT), 1)
+	COMMON_FLAGS += -DCAFFE_FT
+endif
+ifeq ($(SNAPSHOT_RESTART), 1)
+  	COMMON_FLAGS += -DSNAPSHOT_RESTART
+endif
+ifeq ($(USE_REINIT), 1)
+  	COMMON_FLAGS += -DUSE_REINIT
+endif
 # CPU-only configuration
 ifeq ($(CPU_ONLY), 1)
 	OBJS := $(PROTO_OBJS) $(CXX_OBJS)

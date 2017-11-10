@@ -165,7 +165,11 @@ class P2PSync : public GPUParams<Dtype>, public Solver<Dtype>::Callback,
   void SetupP2PAccess();
   void soft_barrier();
   void on_start();
+#ifdef CAFFE_FT
+  std::tuple<int, bool> allreduce();
+#else
   void allreduce();
+#endif /*CAFFE_FT*/
   void syncAllStreams();
 #ifndef CPU_ONLY
 #ifdef USE_NCCL

@@ -1,8 +1,16 @@
+#include <algorithm>
+#include <map>
 #include <cstdio>
-
+#include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include <numeric>
+
+#include <unistd.h>
+
+// #include "boost/bind.hpp"
 #include "caffe/solver.hpp"
 #include "caffe/util/format.hpp"
 #include "caffe/util/hdf5.hpp"
@@ -30,8 +38,20 @@ Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
     : net_(), callbacks_(), root_solver_(root_solver),
       requested_early_exit_(false),
       scale_on_apply_(1.0),
+#ifdef SNAPSHOT_RESTART
+      reinit_time_(0),
+      snapshot_time_(0),
+#endif
       iteration_timer_(), iterations_last_() {
   Init(param);
+#ifdef CAFFE_FT
+  const char* env_victim_rank = std::getenv("ENV_VICTIM_RANK");
+  victim_rank_ = (env_victim_rank != NULL) ? atoi (env_victim_rank):-1;
+  snapshot_count_ = 0;
+  restart_from_snapshot_ = false;
+  snapshot_model_filename_ = "";
+  snapshot_solver_filename_ = "";
+#endif /*CAFFE_FT*/
 }
 
 template <typename Dtype>
@@ -39,14 +59,36 @@ Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
     : net_(), callbacks_(), root_solver_(root_solver),
       requested_early_exit_(false),
       scale_on_apply_(1.0),
+#ifdef SNAPSHOT_RESTART
+      reinit_time_(0),
+      snapshot_time_(0),
+#endif
       iteration_timer_(), iterations_last_() {
   SolverParameter param;
   ReadSolverParamsFromTextFileOrDie(param_file, &param);
   Init(param);
+#ifdef CAFFE_FT
+  const char* env_victim_rank = std::getenv("ENV_VICTIM_RANK");
+  victim_rank_ = (env_victim_rank != NULL) ? atoi (env_victim_rank):-1;
+  snapshot_count_ = 0;
+  restart_from_snapshot_ = false;
+  snapshot_model_filename_ = "";
+#endif /*CAFFE_FT*/
 }
 
 template <typename Dtype>
 void Solver<Dtype>::Init(const SolverParameter& param) {
+  #ifdef USE_MPI
+  #ifdef CAFFE_FT
+  MPI_Comm temp_comm = caffe::mpi::get_working_comm();
+  ft_rank = caffe::mpi::comm_rank(temp_comm);
+  ft_size = caffe::mpi::comm_size(temp_comm);
+  #else
+  ft_rank = caffe::mpi::comm_rank(MPI_COMM_WORLD);
+  ft_size = caffe::mpi::comm_size(MPI_COMM_WORLD);
+  #endif
+  #endif
+
   CHECK(Caffe::root_solver() || root_solver_)
       << "root_solver_ needs to be set for all non-root solvers";
   LOG_IF(INFO, Caffe::root_solver()) << "Initializing solver from parameters: "
@@ -203,6 +245,12 @@ void Solver<Dtype>::Step(int iters) {
   smoothed_loss_ = 0;
   iteration_timer_.Start();
 
+  double temp_time = 0;
+
+#ifdef CAFFE_FT
+  MPI_Comm test_comm = caffe::mpi::get_working_comm();
+  int original_rank = caffe::mpi::comm_rank(test_comm);
+#endif
   for (int i = 0; i < callbacks_.size(); ++i) {
     // we need to sync all threads before starting, otherwise some cuda init,
     // malloc or other cuda stuff could interlock with in-loop cuda GPU sync
@@ -211,10 +259,32 @@ void Solver<Dtype>::Step(int iters) {
     // Initial bcast of parameters
     callbacks_[i]->on_start();
   }
-
+  Timer iter_timer;
+  double total_time = 0, total_comm_time = 0;
   net_->SetSolver(this);
 
   while (iter_ < stop_iter) {
+  double total_step_time = 0
+          , iter_time = 0
+          , comm_step_time = 0
+          , temp_time = 0
+          , data_re_readtime = 0
+          , grad_update_time = 0
+          , comp_step_time = 0;
+
+#ifdef CAFFE_FT
+    MPI_Comm temp_comm = caffe::mpi::get_working_comm();
+    ft_rank = caffe::mpi::comm_rank(temp_comm);
+    ft_size = caffe::mpi::comm_size(temp_comm);
+    // Fault Injection
+    // int victim = ft_size - 1;
+
+    if((ft_rank == victim_rank_) && (iter_ == 300)) {
+      LOG(INFO) << "Victim Rank: " << victim_rank_ << std::endl;
+      raise(SIGKILL);
+    }
+#endif
+    iter_timer.Start();
     // zero-init the params
     net_->ClearParamDiffs();
     if (param_.test_interval() && iter_ % param_.test_interval() == 0
@@ -230,14 +300,22 @@ void Solver<Dtype>::Step(int iters) {
         callbacks_[i]->soft_barrier();
       }
     }
+    temp_time = iter_timer.MilliSeconds();
+    // total_step_time += temp_time;
+    comm_step_time += temp_time;
+
     const bool display = param_.display() && iter_ % param_.display() == 0;
     net_->set_debug_info(display && param_.debug_info());
+    iter_timer.Start();
     // accumulate the loss and gradient
     Dtype loss = 0;
     for (int i = 0; i < param_.iter_size(); ++i) {
       loss += net_->ForwardBackward();
     }
     loss /= param_.iter_size();
+    temp_time = iter_timer.MilliSeconds();
+    comp_step_time += temp_time;
+    // iter_time += temp_time;
     // average the loss across iterations for smoothed reporting
     UpdateSmoothedLoss(loss, start_iter, average_loss);
     if (display) {
@@ -271,15 +349,85 @@ void Solver<Dtype>::Step(int iters) {
 #ifndef CPU_ONLY
     CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
 #endif
+    std::tuple<int, bool> ret_val;
+
+    iter_timer.Start();
     for (int i = 0; i < callbacks_.size(); ++i) {
+#ifdef CAFFE_FT
+      ret_val = callbacks_[i]->allreduce();
+	  temp_time = iter_timer.MilliSeconds();
+	  comm_step_time += temp_time;
+	  
+	  iter_timer.Start();
+#ifndef SNAPSHOT_RESTART
+      if(std::get<1>(ret_val)) {
+        // readback_timer_.Start();
+        // fault has occured
+        // MPI AllReduce other ranks as well..
+        // Global Faulted Variable... (to trigger read from every rank
+        net_->ReSetUpLayer("data");
+        // temp_data_readtime =  iter_timer.MilliSeconds();
+
+        MPI_Comm temp_comm = caffe::mpi::get_working_comm();
+        ft_rank = caffe::mpi::comm_rank(temp_comm);
+        ft_size = caffe::mpi::comm_size(temp_comm);
+        temp_time = iter_timer.MilliSeconds();
+        data_re_readtime += temp_time;
+        DLOG(INFO) << "ReSetUpLayer Done:--------------rank:" << ft_rank
+          << " ,size:" << ft_size << " DataReadback Time: "
+          << data_re_readtime;
+        iter_timer.Start();
+      }
+#endif /* SNAPSHOT_RESTART */
+#else	  
       callbacks_[i]->allreduce();
+	  // temp_time = iter_timer.MilliSeconds();
+#endif 
     }
     // Make sure all gradient exchanges have finished in per-level scheme
     for (int i = 0; i < callbacks_.size(); ++i) {
       callbacks_[i]->syncCommStream();
     }
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+    if(std::get<1>(ret_val)) {
+      LOG(INFO) << "Fault Detected, Restart Initiate!";
+      restart_from_snapshot_ = true;
+      requested_early_exit_ = true; // Due to fault
+#ifdef USE_REINIT
+      if((param_.snapshot() && Caffe::root_solver())) {
+        snapshot_timer_.Start();
+        Snapshot();
+        // Take Snapshot Timing Only Once for ReInit
+        this->snapshot_time_ = snapshot_timer_.MilliSeconds();
+        ++(this->snapshot_count_);
+        LOG(INFO) << "Snapshotting Time(REINIT): " << this->snapshot_time_;
+      }
+      else
+        LOG(INFO) << "Snapshotting Not done for ReINIT, Snapshot Filename missing? ";
+#endif
+      break;
+    }
+#endif /* SNAPSHOT_RESTART */
+#endif /*CAFE_FT*/
 
+    iter_timer.Start();
     ApplyUpdate();
+	grad_update_time = iter_timer.MilliSeconds();
+	// iter_time += iter_timer.MilliSeconds();
+
+    total_step_time
+      = comp_step_time + grad_update_time + data_re_readtime + comm_step_time ;
+
+    total_time += total_step_time;
+    total_comm_time += comm_step_time;
+
+#ifdef USE_MPI
+      LOG(INFO) << "iter " << iter_ << ", step_communication_time: " << comm_step_time << " ms with_rank " << ft_rank;
+      LOG(INFO) << "iter " << iter_ << ", step_total_time: " << total_step_time << " ms with_rank " << ft_rank;
+      LOG(INFO) << "iter " << iter_ << ", cumulative_communication_time: " << total_comm_time << " ms";
+      LOG(INFO) << "iter " << iter_ << ", cumulative_total_time: " << total_time << " ms";
+#endif
 
     // Increment the internal iter_ counter -- its value should always indicate
     // the number of times the weights have been updated.
@@ -292,7 +440,20 @@ void Solver<Dtype>::Step(int iters) {
          && iter_ % param_.snapshot() == 0
          && Caffe::root_solver()) ||
          (request == SolverAction::SNAPSHOT)) {
+#ifndef USE_REINIT
+#ifdef SNAPSHOT_RESTART
+      snapshot_timer_.Start();
+#endif
       Snapshot();
+#ifdef CAFFE_FT
+      // Count for restarting form snapshotted file;
+#ifdef SNAPSHOT_RESTART
+      this->snapshot_time_ = snapshot_timer_.MilliSeconds();
+      LOG(INFO) << "Snapshotting Time(User Initiated): " << this->snapshot_time_ << " ms";
+      ++(this->snapshot_count_);
+#endif /*SNAPSHOT_RESTART*/
+#endif /*CAFFE_FT*/
+#endif /*USE_REINIT*/
     }
     if (SolverAction::STOP == request) {
       requested_early_exit_ = true;
@@ -300,6 +461,16 @@ void Solver<Dtype>::Step(int iters) {
       break;
     }
   }
+MPI_Barrier(caffe::mpi::get_working_comm());
+#ifdef CAFFE_FT
+if(!requested_early_exit_)
+  caffe::mpi::completed(true);
+
+/*#ifdef SNAPSHOT_RESTART
+LOG(INFO) << "Snapshot Time(MilliSeconds): " << snapshot_time_
+          << " , Snapshot Count:  " << snapshot_count_;
+#endif*/
+#endif
 }
 
 template <typename Dtype>
@@ -450,7 +621,15 @@ void Solver<Dtype>::Snapshot() {
     LOG(FATAL) << "Unsupported snapshot format.";
   }
 
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+  snapshot_model_filename_ = model_filename;
+#endif /*SNAPSHOT_RESTART*/
+#endif /*CAFFE_FT*/
+
+  // if(ft_rank == 0) {
   SnapshotSolverState(model_filename);
+  MPI_Barrier(caffe::mpi::get_working_comm());
 }
 
 template <typename Dtype>

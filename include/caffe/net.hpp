@@ -12,6 +12,10 @@
 #include "caffe/layer.hpp"
 #include "caffe/proto/caffe.pb.h"
 
+#ifdef CAFFE_FT
+#include "caffe/mpi.hpp"
+#endif
+
 namespace caffe {
 
 template <typename Dtype>
@@ -234,7 +238,10 @@ class Net {
   void SetSolver(Solver<Dtype>* s) {
     solver_ = s;
   }
-
+  
+#ifdef CAFFE_FT
+  void ReSetUpLayer(const std::string &layer_name);
+#endif
  protected:
   // Helpers for Init.
   /// @brief Append a new top blob to the net.
@@ -320,6 +327,13 @@ class Net {
   /// Pointer to the solver being used with this net
   Solver<Dtype>* solver_;
   DISABLE_COPY_AND_ASSIGN(Net);
+
+  #ifdef CAFFE_FT
+  #ifdef USE_MPI
+  int rank; 
+  int size;
+  #endif /*USE_MPI*/
+  #endif 
 };
 
 

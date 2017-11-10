@@ -9,9 +9,12 @@ namespace bp = boost::python;
 #include <cstring>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
+#include <unistd.h>
 
 #include "boost/algorithm/string.hpp"
+#include "boost/make_shared.hpp"
 #include "caffe/caffe.hpp"
 #include "caffe/mpi.hpp"
 #include "caffe/parallel/mpi_sync_gpu.hpp"
@@ -264,6 +267,64 @@ int train() {
     if (FLAGS_par == "MPISyncGPU") {
       caffe::MPISyncGPU<float> sync(solver);
       sync.Run();
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+      std::tuple<bool, string> tup = solver->RestartFromSnapshot();
+      string snapshot_filename = std::get<1>(tup);
+      int my_rank = -1;
+      MPI_Comm temp_comm = caffe::mpi::get_working_comm();
+      int size = 0;
+      MPI_Comm_size(temp_comm, &size);
+      MPI_Comm_rank(temp_comm, &my_rank);
+      DLOG(INFO) << "Communicator Size after restart! ------ " << size;
+      // Update this with check first then filename
+      if (std::get<0>(tup) && (my_rank >= 0)) {
+        solver->StartReInitTimer();
+        solver->ReInit(solver_param);
+        shared_ptr<caffe::MPISyncCPU<float> > sync2(new caffe::MPISyncCPU<float>(solver));
+        solver->StopReInitTimer();
+        LOG(INFO) << "My Snapshotting Rank: " << my_rank;
+        // sync.reset(new caffe::MPISyncCPU<float>(solver));
+        LOG(INFO) << "MPISyncRerun Rank: " << my_rank;
+        // sync->Run(snapshot_filename.c_str());
+        sync2->Run(snapshot_filename.c_str());
+        LOG(INFO) << "Reinit Time (Milliseconds)" << solver->GetReInitTime();
+      }
+      else if(!std::get<0>(tup) && ( my_rank >= 0) && FLAGS_snapshot.size()) {
+        solver->StartReInitTimer();
+        solver->ReInit(solver_param);
+        solver->Restore(FLAGS_snapshot.c_str());
+        shared_ptr<caffe::MPISyncCPU<float> > sync2(new caffe::MPISyncCPU<float>(solver));
+        solver->StopReInitTimer();
+        LOG(INFO) << "Resuming from " << FLAGS_snapshot;
+        LOG(INFO) << "My NonSnapshotting Rank: " << my_rank;
+
+        // sync.reset(new caffe::MPISyncCPU<float>(solver));
+        LOG(INFO) << "MPISyncRerun Rank: " << my_rank;
+        // sync->Run();
+        sync2->Run();
+        LOG(INFO) << "Reinit Time (Milliseconds)" << solver->GetReInitTime();
+      }
+      else {
+        solver->StartReInitTimer();
+        solver->ReInit(solver_param);
+        // solver->Restore(FLAGS_snapshot.c_str());
+        shared_ptr<caffe::MPISyncCPU<float> > sync2(new caffe::MPISyncCPU<float>(solver));
+        solver->StopReInitTimer();
+        // LOG(INFO) << "Resuming from " << FLAGS_snapshot;
+        // solver->Restore(FLAGS_snapshot.c_str());
+        LOG(INFO) << "My NonSnapshotting From Beginning Rank: " << my_rank;
+
+        // sync.reset(new caffe::MPISyncCPU<float>(solver));
+        LOG(INFO) << "MPISyncRerun Rank: " << my_rank;
+        // sync->Run();
+        sync2->Run();
+        LOG(INFO) << "Reinit Time (Milliseconds)" << solver->GetReInitTime();
+      }
+      // TODO: impl for faulted but no checkpoint available. Restart the computation.
+      // TODO: multiple faults?
+#endif /*SNAPSHOT_RESTART*/
+#endif /*CAFFE_FT*/
     }
     else {
       LOG(ERROR) << "unrecognized -par value: " << FLAGS_par;

@@ -40,6 +40,14 @@ template <typename Dtype>
 void Net<Dtype>::Init(const NetParameter& in_param) {
   CHECK(Caffe::root_solver() || root_net_)
       << "root_net_ needs to be set for all non-root solvers";
+
+#ifdef CAFFE_FT
+#ifdef USE_MPI
+  MPI_Comm temp_comm = caffe::mpi::get_working_comm();
+  rank = caffe::mpi::comm_rank(temp_comm);
+  size = caffe::mpi::comm_size(temp_comm);
+#endif
+#endif
   // Set phase from the state.
   phase_ = in_param.state().phase();
   // Filter layers based on their include/exclude rules and
@@ -139,7 +147,21 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
             << layer_param.name();
       }
     } else {
+  #ifdef CAFFE_FT
+    #ifdef USE_MPI
+      DLOG(INFO) << "Before Layer SetUp called -- " << layer_id << ", rank:"
+        << rank << ", size" << size <<", bottom_vecSize(blobs)"
+        << bottom_vecs_[layer_id].size() << ", top_vecSize(blobs)"
+        << top_vecs_[layer_id].size();
       layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id]);
+      DLOG(INFO) << "After Layer Setup__Layer ID: -- " << layer_id << ", rank:"
+        << rank << ", size" << size <<", bottom_vecSize(blobs)"
+        << bottom_vecs_[layer_id].size() << ", top_vecSize(blobs)"
+        << top_vecs_[layer_id].size();
+    #endif
+  #else
+      layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id]);
+  #endif
     }
     LOG_IF(INFO, Caffe::root_solver())
         << "Setting up " << layer_names_[layer_id];
@@ -283,6 +305,33 @@ void Net<Dtype>::Init(const NetParameter& in_param) {
   debug_info_ = param.debug_info();
   LOG_IF(INFO, Caffe::root_solver()) << "Network initialization done.";
 }
+
+#ifdef CAFFE_FT
+template <typename Dtype>
+void Net<Dtype>::ReSetUpLayer(const std::string& layer_name) {
+#ifdef USE_MPI
+  MPI_Comm temp_comm = caffe::mpi::get_working_comm();
+  rank = caffe::mpi::comm_rank(temp_comm);
+  size = caffe::mpi::comm_size(temp_comm);
+#endif /*USE_MPI*/
+  DLOG(INFO) << "layer_names_size:" << layer_names_index_.size();
+
+  //int layer_id = layer_names_index_.at(layer_name);
+  int layer_id = layer_names_index_[layer_name];
+  DLOG(INFO) << "After Fault - Before Layer Update called -- " << layer_id << ", rank:"
+        << rank << ", size" << size <<", bottom_vecSize(blobs)"
+        << bottom_vecs_[layer_id].size() << ", top_vecSize(blobs)"
+        << top_vecs_[layer_id].size();
+  // Environment Variable to activate here
+  // layers_[layer_id]->SetUp(bottom_vecs_[layer_id], top_vecs_[layer_id]);
+  // Layer update here:
+  layers_[layer_id]->Update(bottom_vecs_[layer_id], top_vecs_[layer_id]);
+  DLOG(INFO) << "After Fault - After Layer Update __Layer ID: -- " << layer_id << ", rank:"
+        << rank << ", size" << size <<", bottom_vecSize(blobs)"
+        << bottom_vecs_[layer_id].size() << ", top_vecSize(blobs)"
+        << top_vecs_[layer_id].size();
+}
+#endif /*CAFFE_FT*/
 
 template <typename Dtype>
 void Net<Dtype>::FilterNet(const NetParameter& param,

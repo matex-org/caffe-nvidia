@@ -26,7 +26,12 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver)
       timer_(),
       cpu_ptr_() {
 #ifdef USE_MPI
+  #if CAFFE_FT
+  comm_ = caffe::mpi::get_working_comm();
+  std::cout << "Working Comm MPISYNCCPU.\n";
+  #else
   comm_ = caffe::mpi::comm_dup();
+  #endif /*CAFFE_FT*/
   comm_size_ = caffe::mpi::comm_size(comm_);
 
   int count = 0;
@@ -35,7 +40,7 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver)
 
   CUDA_CHECK(cudaGetDeviceCount(&count));
 
-  comm_ = caffe::mpi::comm_dup();
+  // comm_ = caffe::mpi::comm_dup();
   comm_size_ = caffe::mpi::comm_size(comm_);
   node_rank = caffe::mpi::node_rank(comm_);
   node_size = caffe::mpi::node_size(comm_);
@@ -62,7 +67,10 @@ MPISyncGPU<Dtype>::MPISyncGPU(shared_ptr<Solver<Dtype> > root_solver)
   solver_ = root_solver;
   this->configure(solver_.get());
   solver_->add_callback(this);
-
+#ifdef CAFFE_FT
+  caffe::mpi::bcast(data_, size_, 0, comm_);
+  LOG(INFO) << "My rank after bcast: " << caffe::mpi::comm_rank(caffe::mpi::get_working_comm());
+#endif /*CAFFE_FT*/
   solver_->set_scale_on_apply(Dtype(1.0 / comm_size_));
 
   cpu_ptr_ = new Dtype[size_];
@@ -87,14 +95,35 @@ MPISyncGPU<Dtype>::~MPISyncGPU() {
 }
 
 template<typename Dtype>
+#ifdef CAFFE_FT 
+std::tuple<int, bool> MPISyncGPU<Dtype>::allreduce() {
+#else
 void MPISyncGPU<Dtype>::allreduce() {
+#endif 
   DLOG(INFO) << "allreduce()";
 #ifndef CPU_ONLY
   // Copy from GPU device to CPU host
   CUDA_CHECK(cudaMemcpy(cpu_ptr_, diff_, size_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
 
   // Sum gradients
+#ifdef CAFFE_FT
+  comm_ = caffe::mpi::get_working_comm();
+  std::tuple<int,bool> ret_val
+      = caffe::mpi::allreduce(cpu_ptr_, size_, MPI_SUM, this->comm_);
+  if(std::get<1>(ret_val)) {
+    this->comm_ = caffe::mpi::get_working_comm();
+    DLOG(INFO) << "RETVAL<1> true, MPISYNCGPU --------------" ;
+  }
+  if(std::get<0>(ret_val) != MPI_SUCCESS) { // This should not be triggered
+    comm_ = caffe::mpi::get_working_comm();
+    int temp_sz = caffe::mpi::comm_size(comm_);
+    DLOG(INFO) << "Corrected Communicator Size {mpi_sync_cpu}!!!!!: " << temp_sz;
+  }
+  return ret_val;
+#else
   caffe::mpi::allreduce(cpu_ptr_, size_, MPI_SUM, comm_);
+#endif 
+  
 
   // Copy from CPU host to GPU device
   CUDA_CHECK(cudaMemcpy(diff_, cpu_ptr_, size_ * sizeof(Dtype), cudaMemcpyHostToDevice));
@@ -110,6 +139,17 @@ void MPISyncGPU<Dtype>::Run() {
   // Run root solver on current thread
   solver_->Solve();
 }
+
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+template<typename Dtype>
+void MPISyncCPU<Dtype>::Run(const string snapshot_file) {
+  LOG(INFO) << "Restarting Optimization from Snapshot File";
+  // Re run the solver on current thread
+  solver_->Solve(snapshot_file.c_str());
+}
+#endif
+#endif
 
 template<typename Dtype>
 void MPISyncGPU<Dtype>::Step(int iters) {

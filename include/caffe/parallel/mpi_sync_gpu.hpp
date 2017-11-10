@@ -10,6 +10,10 @@
 #include "caffe/parallel.hpp"
 #include "caffe/solver.hpp"
 
+#ifdef CAFFE_FT
+#include <tuple>
+#endif
+
 namespace caffe {
 
 // Synchronous data parallelism using Allreduce between remote GPUs.
@@ -24,6 +28,11 @@ class MPISyncGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
   }
 
   void Run();
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+  void Run(const string snapshot_file);
+#endif
+#endif
   void Step(int iters);
 
   void allreduce(int param_id) {}
@@ -31,11 +40,18 @@ class MPISyncGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
 
  protected:
   void on_start() {}
+#ifdef CAFFE_FT  
+  std::tuple<int,bool> allreduce();
+#else
   void allreduce();
+#endif /*CAFFE_FT*/
   void soft_barrier() {}
 
 #ifdef USE_MPI
   MPI_Comm comm_;
+  #ifdef CAFFE_FT
+  int error_code_;
+  #endif
 #endif
   int comm_size_;
   shared_ptr<Solver<Dtype> > solver_;

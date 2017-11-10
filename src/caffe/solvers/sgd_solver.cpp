@@ -7,6 +7,60 @@
 #include "caffe/util/upgrade_proto.hpp"
 
 namespace caffe {
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+// Reinitialize the Network for Restart after fault.
+template <typename Dtype>
+void SGDSolver<Dtype>::ReInit(const SolverParameter& param) {
+  this->param_ = param;// caffe::SolverParameter();
+  this->current_step_ = 0;
+  this->net_.reset();
+  this->test_nets_.clear();
+  this->callbacks_.clear();
+  this->losses_.clear();
+  this->smoothed_loss_ = 0;
+  this-> action_request_function_ = NULL;
+  this->requested_early_exit_ = false;
+  this->scale_on_apply_ = 1.0;
+  this->ft_rank = -1;
+  this->ft_size = 0;
+  this->snapshot_model_filename_ = "";
+  this->snapshot_solver_filename_ = "";
+  this->snapshot_count_ = 0;
+  this->restart_from_snapshot_ = false;
+  // this->forward_backward_ = boost::bind(&Solver<Dtype>::ForwardBackward, this);
+  this->Init(param);
+  Caffe::set_iter_size(this->param_.iter_size());
+
+}
+
+template <typename Dtype>
+void SGDSolver<Dtype>::ReInit(const string& param_file) {
+  this->current_step_ = 0;
+  this->net_.reset();
+  this->test_nets_.clear();
+  this->callbacks_.clear();
+  this->losses_.clear();
+  this->smoothed_loss_ = 0;
+  this-> action_request_function_ = NULL;
+  this->requested_early_exit_ = false;
+  this->scale_on_apply_ = 1.0;
+  this->ft_rank = -1;
+  this->ft_size = 0;
+  this->snapshot_model_filename_ = "";
+  this->snapshot_solver_filename_ = "";
+  this->snapshot_count_ = 0;
+  this->restart_from_snapshot_ = false;
+  // this->forward_backward_ = boost::bind(&Solver<Dtype>::ForwardBackward, this);
+  SolverParameter param;
+  ReadSolverParamsFromTextFileOrDie(param_file, &param);
+  this->param_ = param;// caffe::SolverParameter();
+  this->Init(param);
+  Caffe::set_iter_size(this->param_.iter_size());
+}
+
+#endif /*SNAPSHOT_RESTART*/
+#endif /*CAFFE_FT*/
 
 // Return the current learning rate. The currently implemented learning rate
 // policies are as follows:
@@ -272,9 +326,17 @@ void SGDSolver<Dtype>::SnapshotSolverStateToBinaryProto(
     history_[i]->ToProto(history_blob);
   }
   string snapshot_filename = Solver<Dtype>::SnapshotFilename(".solverstate");
+  if(this->ft_rank == 0) {
   LOG(INFO)
     << "Snapshotting solver state to binary proto file " << snapshot_filename;
   WriteProtoToBinaryFile(state, snapshot_filename.c_str());
+  }
+  // MPI_Barrier(caffe::mpi::get_working_comm());
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+  this->snapshot_solver_filename_ = snapshot_filename;
+#endif
+#endif
 }
 
 template <typename Dtype>

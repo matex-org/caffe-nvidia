@@ -31,6 +31,19 @@ void BaseDataLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   // The subclasses should setup the size of bottom and top
   DataLayerSetUp(bottom, top);
 }
+#ifdef CAFFE_FT
+template <typename Dtype>
+void BaseDataLayer<Dtype>::LayerUpdate(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top) {
+  if (top.size() == 1) {
+    output_labels_ = false;
+  } else {
+    output_labels_ = true;
+  }
+  // Data_Transformers re-init/reset required ??? 
+  DataLayerUpdate(bottom, top);
+}
+#endif /*CAFFE_FT*/
 
 template <typename Dtype>
 BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
@@ -67,11 +80,48 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
     }
   }
 #endif
+
+
   DLOG(INFO) << "Initializing prefetch";
   this->data_transformer_->InitRand();
   StartInternalThread();
   DLOG(INFO) << "Prefetch initialized.";
 }
+
+#ifdef CAFFE_FT
+// TODO: remove code duplication
+template <typename Dtype>
+void BasePrefetchingDataLayer<Dtype>::LayerUpdate(
+  const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+  BaseDataLayer<Dtype>::LayerUpdate(bottom, top);
+  // " " cpu_data and gpu_data calls before starting the prefetch thread. 
+  for (int i = 0; i < PREFETCH_COUNT; ++i) {
+    prefetch_[i].data_.mutable_cpu_data();
+    if (this->output_labels_) {
+      prefetch_[i].label_.mutable_cpu_data();
+    }
+  }
+#ifndef CPU_ONLY
+  if (Caffe::mode() == Caffe::GPU) {
+    for (int i = 0; i < PREFETCH_COUNT; ++i) {
+      prefetch_[i].data_.mutable_gpu_data();
+      if (this->output_labels_) {
+        prefetch_[i].label_.mutable_gpu_data();
+      }
+    }
+  }
+#endif
+
+  DLOG(INFO) << "Initializing prefetch";
+  this->data_transformer_->InitRand();
+
+  // Only if GPU mode on then we use background threads
+  //#if (Caffe::mode() == Caffe::GPU) {
+  //#  StartInternalThread();
+  //#}
+  DLOG(INFO) << "Prefetch initialized.";
+}
+#endif /*CAFFE_FT*/
 
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::InternalThreadEntry() {

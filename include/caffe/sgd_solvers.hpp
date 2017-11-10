@@ -27,11 +27,18 @@ class SGDSolver : public Solver<Dtype> {
 
   using Solver<Dtype>::scale_on_apply;
   void ShareWeights(SGDSolver *solver);
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+  virtual void ReInit(const SolverParameter& param);
+  virtual void ReInit(const string& param_file);
+#endif
+#endif
 
  protected:
   void PreSolve();
   Dtype GetLearningRate();
   virtual void ApplyUpdate();
+  virtual void ApplyUpdate(int param_id);
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);
   virtual void ComputeUpdateValue(int param_id, Dtype rate);

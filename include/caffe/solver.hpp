@@ -6,7 +6,18 @@
 
 #include "caffe/net.hpp"
 #include "caffe/solver_factory.hpp"
+
+#ifdef CAFFE_FT
+#include "caffe/mpi.hpp"
+#include <tuple>
+#endif
+
 #include "caffe/util/benchmark.hpp"
+
+#ifdef CAFFE_FT
+#include <tuple>
+#include <cstdio>
+#endif
 
 namespace caffe {
 
@@ -48,6 +59,24 @@ class Solver {
   void InitTrainNet();
   void InitTestNets();
 
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
+  virtual void ReInit(const SolverParameter& param) = 0;
+  virtual void ReInit(const string& param_file) = 0;
+
+  void StartReInitTimer() {
+    reinit_timer_.Start();
+  }
+  void StopReInitTimer() {
+    reinit_time_ += reinit_timer_.MilliSeconds();
+    reinit_timer_.Stop();
+  }
+
+  double GetReInitTime() {
+    return reinit_time_;
+  }
+#endif
+#endif
   // Client of the Solver optionally may call this in order to set the function
   // that the solver uses to see what action it should take (e.g. snapshot or
   // exit training early).
@@ -89,7 +118,12 @@ class Solver {
 
    protected:
     virtual void on_start() = 0;
+#ifdef CAFFE_FT
+    virtual std::tuple<int, bool> allreduce() = 0;
+#else
+//#endif
     virtual void allreduce() = 0;
+#endif
     virtual void soft_barrier() = 0;
 
     template <typename T>
@@ -106,9 +140,25 @@ class Solver {
    */
   virtual inline const char* type() const { return ""; }
 
+// The Solver::Snapshot function implements the basic snapshotting utility
+  // that stores the learned net. You should implement the SnapshotSolverState()
+  // function that produces a SolverState protocol buffer that needs to be
+  // written to disk together with the learned net.
+  void Snapshot(); // Check for implementation of this API
+  
+#ifdef CAFFE_FT
+  virtual std::tuple<bool,string> RestartFromSnapshot() {
+    if(this->restart_from_snapshot_ && (this->snapshot_count_ > 0))
+      return std::make_tuple( true, this->snapshot_solver_filename_);
+    else
+      return std::make_tuple(false, "");
+  }
+#endif /*CAFFE_FT*/
+
  protected:
   // Make and apply the update value for the current iteration.
   virtual void ApplyUpdate() = 0;
+  virtual void ApplyUpdate(int param_id) = 0;
   string SnapshotFilename(const string extension);
   string SnapshotToBinaryProto();
   string SnapshotToHDF5();
@@ -149,6 +199,23 @@ class Solver {
   float iterations_last_;
 
   DISABLE_COPY_AND_ASSIGN(Solver);
+
+ protected:
+  // #ifdef CAFFE_FT
+  int ft_rank, ft_size;
+  // #endif
+#ifdef CAFFE_FT
+  int victim_rank_;
+  string snapshot_model_filename_;
+  string snapshot_solver_filename_;
+  int snapshot_count_;
+  bool restart_from_snapshot_;
+  Timer readback_timer_;
+#ifdef SNAPSHOT_RESTART
+  Timer reinit_timer_ , snapshot_timer_;
+  double reinit_time_, snapshot_time_;
+#endif /*SNAPSHOT_RESTART*/
+#endif /*CAFFE_FT*/
 };
 
 /**
@@ -164,6 +231,7 @@ class WorkerSolver : public Solver<Dtype> {
 
  protected:
   void ApplyUpdate() {}
+  void ApplyUpdate(int param_id) {}
   void SnapshotSolverState(const string& model_filename) {
     LOG(FATAL) << "Should not be called on worker solver.";
   }

@@ -26,6 +26,12 @@ class BaseDataLayer : public Layer<Dtype> {
   // This method may not be overridden except by the BasePrefetchingDataLayer.
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+#ifdef CAFFE_FT
+  virtual void LayerUpdate(const vector<Blob<Dtype>*>& bottom, 
+      const vector<Blob<Dtype>*>& top);
+  virtual void DataLayerUpdate(const vector<Blob<Dtype>*>& bottom, 
+      const vector<Blob<Dtype>*>& top) {}
+#endif /*CAFFE_FT*/
   // Data layers should be shared by multiple solvers in parallel
   virtual inline bool ShareInParallel() const { return true; }
   virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
@@ -66,7 +72,10 @@ class BasePrefetchingDataLayer :
   // This method may not be overridden.
   void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
-
+#ifdef CAFFE_FT
+  void LayerUpdate(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top);
+#endif /*CAFFE_FT*/
   virtual void Forward_cpu(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   virtual void Forward_gpu(const vector<Blob<Dtype>*>& bottom,
