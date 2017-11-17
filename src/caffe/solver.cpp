@@ -47,6 +47,7 @@ Solver<Dtype>::Solver(const SolverParameter& param, const Solver* root_solver)
 #ifdef CAFFE_FT
   const char* env_victim_rank = std::getenv("ENV_VICTIM_RANK");
   victim_rank_ = (env_victim_rank != NULL) ? atoi (env_victim_rank):-1;
+  LOG(INFO) << "Victim Rank: " << victim_rank_;
   snapshot_count_ = 0;
   restart_from_snapshot_ = false;
   snapshot_model_filename_ = "";
@@ -70,6 +71,7 @@ Solver<Dtype>::Solver(const string& param_file, const Solver* root_solver)
 #ifdef CAFFE_FT
   const char* env_victim_rank = std::getenv("ENV_VICTIM_RANK");
   victim_rank_ = (env_victim_rank != NULL) ? atoi (env_victim_rank):-1;
+  LOG(INFO) << "Victim Rank: " << victim_rank_;
   snapshot_count_ = 0;
   restart_from_snapshot_ = false;
   snapshot_model_filename_ = "";
@@ -243,7 +245,7 @@ void Solver<Dtype>::Step(int iters) {
   int average_loss = this->param_.average_loss();
   losses_.clear();
   smoothed_loss_ = 0;
-  iteration_timer_.Start();
+  // iteration_timer_.Start();
 
   double temp_time = 0;
 
@@ -261,6 +263,7 @@ void Solver<Dtype>::Step(int iters) {
   }
   Timer iter_timer;
   double total_time = 0, total_comm_time = 0;
+  float total_stime = 0;
   net_->SetSolver(this);
 
   while (iter_ < stop_iter) {
@@ -302,6 +305,7 @@ void Solver<Dtype>::Step(int iters) {
     }
     temp_time = iter_timer.MilliSeconds();
     // total_step_time += temp_time;
+    total_stime += temp_time;
     comm_step_time += temp_time;
 
     const bool display = param_.display() && iter_ % param_.display() == 0;
@@ -314,17 +318,20 @@ void Solver<Dtype>::Step(int iters) {
     }
     loss /= param_.iter_size();
     temp_time = iter_timer.MilliSeconds();
+    total_stime += temp_time;
     comp_step_time += temp_time;
     // iter_time += temp_time;
     // average the loss across iterations for smoothed reporting
     UpdateSmoothedLoss(loss, start_iter, average_loss);
     if (display) {
-      float lapse = iteration_timer_.Seconds();
+      // float lapse = iteration_timer_.Seconds();
+      float lapse = total_stime/1000; // seconds
       float per_s = (iter_ - iterations_last_) / (lapse ? lapse : 1);
-      LOG_IF(INFO, Caffe::root_solver()) << "Iteration " << iter_
+      LOG_IF(INFO, Caffe::root_solver()) << "my_rank [" << ft_rank
+          << "] Iteration " << iter_
           << " (" << per_s << " iter/s, " << lapse << "s/"
           << param_.display() <<" iter), loss = " << smoothed_loss_;
-      iteration_timer_.Start();
+      // iteration_timer_.Start();
       iterations_last_ = iter_;
       const vector<Blob<Dtype>*>& result = net_->output_blobs();
       int score_index = 0;
@@ -345,6 +352,7 @@ void Solver<Dtype>::Step(int iters) {
               << result_vec[k] << loss_msg_stream.str();
         }
       }
+      total_stime = 0;
     }
 #ifndef CPU_ONLY
     CUDA_CHECK(cudaStreamSynchronize(cudaStreamDefault));
@@ -356,8 +364,9 @@ void Solver<Dtype>::Step(int iters) {
 #ifdef CAFFE_FT
       ret_val = callbacks_[i]->allreduce();
 	  temp_time = iter_timer.MilliSeconds();
+    total_stime += temp_time;
 	  comm_step_time += temp_time;
-	  
+
 	  iter_timer.Start();
 #ifndef SNAPSHOT_RESTART
       if(std::get<1>(ret_val)) {
@@ -379,15 +388,20 @@ void Solver<Dtype>::Step(int iters) {
         iter_timer.Start();
       }
 #endif /* SNAPSHOT_RESTART */
-#else	  
+#else
       callbacks_[i]->allreduce();
 	  // temp_time = iter_timer.MilliSeconds();
-#endif 
+#endif
     }
     // Make sure all gradient exchanges have finished in per-level scheme
     for (int i = 0; i < callbacks_.size(); ++i) {
       callbacks_[i]->syncCommStream();
     }
+    temp_time = iter_timer.MilliSeconds();
+    total_stime += temp_time;
+    comm_step_time += temp_time;
+
+    // iter_timer.Start();
 #ifdef CAFFE_FT
 #ifdef SNAPSHOT_RESTART
     if(std::get<1>(ret_val)) {
@@ -413,8 +427,8 @@ void Solver<Dtype>::Step(int iters) {
 
     iter_timer.Start();
     ApplyUpdate();
-	grad_update_time = iter_timer.MilliSeconds();
-	// iter_time += iter_timer.MilliSeconds();
+	  grad_update_time = iter_timer.MilliSeconds();
+	  // iter_time += iter_timer.MilliSeconds();
 
     total_step_time
       = comp_step_time + grad_update_time + data_re_readtime + comm_step_time ;
@@ -461,8 +475,9 @@ void Solver<Dtype>::Step(int iters) {
       break;
     }
   }
-MPI_Barrier(caffe::mpi::get_working_comm());
+
 #ifdef CAFFE_FT
+MPI_Barrier(caffe::mpi::get_working_comm());
 if(!requested_early_exit_)
   caffe::mpi::completed(true);
 
@@ -629,7 +644,11 @@ void Solver<Dtype>::Snapshot() {
 
   // if(ft_rank == 0) {
   SnapshotSolverState(model_filename);
+#ifdef CAFFE_FT
+#ifdef SNAPSHOT_RESTART
   MPI_Barrier(caffe::mpi::get_working_comm());
+#endif /*SNAPSHOT_RESTART*/
+#endif /*CAFFE_FT*/
 }
 
 template <typename Dtype>

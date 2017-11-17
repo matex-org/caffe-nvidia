@@ -35,12 +35,16 @@ class MPISyncGPU : public GPUParams<Dtype>, public Solver<Dtype>::Callback {
 #endif
   void Step(int iters);
 
+#ifdef CAFFE_FT
+  std::tuple<int, bool>  allreduce(int param_id) { std::tuple<int, bool> dummy; return dummy;}
+#else
   void allreduce(int param_id) {}
+#endif
   void syncCommStream() {}
 
  protected:
   void on_start() {}
-#ifdef CAFFE_FT  
+#ifdef CAFFE_FT
   std::tuple<int,bool> allreduce();
 #else
   void allreduce();

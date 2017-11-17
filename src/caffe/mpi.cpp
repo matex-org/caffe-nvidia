@@ -92,7 +92,13 @@ int rank = 0, size = 0, namelen = 0;
   int rank = 0;
   int size = 0;
   int namelen = 0;
-  if (!initialized()) {
+
+  int rc;
+  MPI_Init(argc, argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Get_processor_name(name, &namelen);
+  /*if (!initialized()) {
     int provided;
     if (MPI_SUCCESS != MPI_Init_thread(
           argc, argv, MPI_THREAD_MULTIPLE, &provided)) {
@@ -107,7 +113,7 @@ int rank = 0, size = 0, namelen = 0;
 
   if (0 != atexit(finalize)) {
     throw std::runtime_error("atexit(caffe::mpi::finalize) failed");
-  }
+  }*/
 #endif // CAFFE_FT
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -220,10 +226,10 @@ MPI_Comm comm_create(const std::vector<int> &incl, MPI_Comm comm) {
   }
 
 #ifndef CAFFE_FT
-  if (MPI_SUCCESS != MPI_Group_incl(group_old, size, &incl[0], &group_new)) {
-    throw std::runtime_error("MPI_Group_incl failed");
-    return MPI_COMM_NULL;
-  }
+  // if (MPI_SUCCESS != MPI_Group_incl(group_old, size, &incl[0], &group_new)) {
+  //   throw std::runtime_error("MPI_Group_incl failed");
+  //   return MPI_COMM_NULL;
+  // }
 #endif /*CAFFE_FT*/
 
   if (MPI_SUCCESS != MPI_Comm_create(comm, group_new, &newcomm)) {
@@ -872,6 +878,7 @@ void allreduce(double* buffer, int count, MPI_Op op, MPI_Comm comm) {
   }
 }
 
+/*
 void iallreduce(MPI_Request &request, float* buffer, int count, MPI_Op op, MPI_Comm comm) {
   if (MPI_COMM_NULL == comm) {
     comm = get_comm_default();
@@ -893,7 +900,7 @@ void iallreduce(MPI_Request &request, double* buffer, int count, MPI_Op op, MPI_
     throw std::runtime_error("MPI_Iallreduce failed (allreduce double)");
   }
 }
-
+*/
 void bcast(std::vector<int> &buffer, int root, MPI_Comm comm) {
   if (MPI_COMM_NULL == comm) {
     comm = get_comm_default();
@@ -945,7 +952,7 @@ void bcast(double* buffer, int count, int root, MPI_Comm comm) {
     throw std::runtime_error("MPI_Bcast failed");
   }
 }
-
+/*
 void send(const float* buffer, int count, int dest, int tag, MPI_Comm comm) {
   if (MPI_COMM_NULL == comm) {
     comm = get_comm_default();
@@ -1125,7 +1132,7 @@ void irecv(MPI_Request &request, double *buffer, int count, int source, int tag,
     throw std::runtime_error("MPI_Irecv failed (double)");
   }
 }
-
+*/
 #endif /*CAFFE_FT update this*/
 
 #else

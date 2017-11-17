@@ -73,6 +73,17 @@ class Layer {
     SetLossWeights(top);
   }
 
+#ifdef CAFFE_FT
+  void Update(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top) {
+    InitMutex();
+    CheckBlobCounts(bottom, top);
+    LayerUpdate(bottom, top);
+    Reshape(bottom, top);
+    SetLossWeights(top); // Do we need this??
+  }
+#endif /*CAFFE_FT*/
+
   /**
    * @brief Does layer-specific setup: your layer should implement this function
    *        as well as Reshape.
@@ -91,6 +102,10 @@ class Layer {
    */
   virtual void LayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {}
+#ifdef CAFFE_FT
+  virtual void LayerUpdate(const vector<Blob<Dtype>*>& bottom,
+      const vector<Blob<Dtype>*>& top) {}
+#endif /*CAFFE_FT*/
 
   /**
    * @brief Whether a layer should be shared by multiple nets during data
@@ -315,7 +330,6 @@ class Layer {
     }
     param_propagate_down_[param_id] = value;
   }
-
 
  protected:
   /** The protobuf that stores the layer parameters */

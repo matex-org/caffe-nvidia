@@ -95,11 +95,11 @@ MPISyncGPU<Dtype>::~MPISyncGPU() {
 }
 
 template<typename Dtype>
-#ifdef CAFFE_FT 
+#ifdef CAFFE_FT
 std::tuple<int, bool> MPISyncGPU<Dtype>::allreduce() {
 #else
 void MPISyncGPU<Dtype>::allreduce() {
-#endif 
+#endif
   DLOG(INFO) << "allreduce()";
 #ifndef CPU_ONLY
   // Copy from GPU device to CPU host
@@ -122,8 +122,7 @@ void MPISyncGPU<Dtype>::allreduce() {
   return ret_val;
 #else
   caffe::mpi::allreduce(cpu_ptr_, size_, MPI_SUM, comm_);
-#endif 
-  
+#endif
 
   // Copy from CPU host to GPU device
   CUDA_CHECK(cudaMemcpy(diff_, cpu_ptr_, size_ * sizeof(Dtype), cudaMemcpyHostToDevice));
@@ -143,7 +142,7 @@ void MPISyncGPU<Dtype>::Run() {
 #ifdef CAFFE_FT
 #ifdef SNAPSHOT_RESTART
 template<typename Dtype>
-void MPISyncCPU<Dtype>::Run(const string snapshot_file) {
+void MPISyncGPU<Dtype>::Run(const string snapshot_file) {
   LOG(INFO) << "Restarting Optimization from Snapshot File";
   // Re run the solver on current thread
   solver_->Solve(snapshot_file.c_str());
@@ -162,4 +161,3 @@ void MPISyncGPU<Dtype>::Step(int iters) {
 INSTANTIATE_CLASS(MPISyncGPU);
 
 }  // namespace caffe
-

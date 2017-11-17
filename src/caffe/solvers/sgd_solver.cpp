@@ -30,7 +30,7 @@ void SGDSolver<Dtype>::ReInit(const SolverParameter& param) {
   this->restart_from_snapshot_ = false;
   // this->forward_backward_ = boost::bind(&Solver<Dtype>::ForwardBackward, this);
   this->Init(param);
-  Caffe::set_iter_size(this->param_.iter_size());
+  // Caffe::set_iter_size(this->param_.iter_size());
 
 }
 
@@ -56,7 +56,7 @@ void SGDSolver<Dtype>::ReInit(const string& param_file) {
   ReadSolverParamsFromTextFileOrDie(param_file, &param);
   this->param_ = param;// caffe::SolverParameter();
   this->Init(param);
-  Caffe::set_iter_size(this->param_.iter_size());
+  // Caffe::set_iter_size(this->param_.iter_size());
 }
 
 #endif /*SNAPSHOT_RESTART*/

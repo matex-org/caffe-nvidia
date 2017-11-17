@@ -158,7 +158,11 @@ class P2PSync : public GPUParams<Dtype>, public Solver<Dtype>::Callback,
 #endif
 
  public:
+#ifdef CAFFE_FT
+  std::tuple<int, bool> allreduce(int param_id);
+#else
   void allreduce(int param_id);
+#endif
   void syncCommStream();
 
  protected:

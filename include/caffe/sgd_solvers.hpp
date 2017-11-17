@@ -38,7 +38,7 @@ class SGDSolver : public Solver<Dtype> {
   void PreSolve();
   Dtype GetLearningRate();
   virtual void ApplyUpdate();
-  virtual void ApplyUpdate(int param_id);
+  virtual void ApplyUpdate(int param_id) {}
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);
   virtual void ComputeUpdateValue(int param_id, Dtype rate);
@@ -96,7 +96,6 @@ class AdaGradSolver : public SGDSolver<Dtype> {
 
   DISABLE_COPY_AND_ASSIGN(AdaGradSolver);
 };
-
 
 template <typename Dtype>
 class RMSPropSolver : public SGDSolver<Dtype> {

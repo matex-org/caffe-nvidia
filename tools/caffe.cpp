@@ -21,7 +21,6 @@ namespace bp = boost::python;
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
-
 using caffe::Blob;
 using caffe::Caffe;
 using caffe::Net;
@@ -281,10 +280,10 @@ int train() {
       if (std::get<0>(tup) && (my_rank >= 0)) {
         solver->StartReInitTimer();
         solver->ReInit(solver_param);
-        shared_ptr<caffe::MPISyncCPU<float> > sync2(new caffe::MPISyncCPU<float>(solver));
+        shared_ptr<caffe::MPISyncGPU<float> > sync2(new caffe::MPISyncGPU<float>(solver));
         solver->StopReInitTimer();
         LOG(INFO) << "My Snapshotting Rank: " << my_rank;
-        // sync.reset(new caffe::MPISyncCPU<float>(solver));
+        // sync.reset(new caffe::MPISyncGPU<float>(solver));
         LOG(INFO) << "MPISyncRerun Rank: " << my_rank;
         // sync->Run(snapshot_filename.c_str());
         sync2->Run(snapshot_filename.c_str());
@@ -294,12 +293,12 @@ int train() {
         solver->StartReInitTimer();
         solver->ReInit(solver_param);
         solver->Restore(FLAGS_snapshot.c_str());
-        shared_ptr<caffe::MPISyncCPU<float> > sync2(new caffe::MPISyncCPU<float>(solver));
+        shared_ptr<caffe::MPISyncGPU<float> > sync2(new caffe::MPISyncGPU<float>(solver));
         solver->StopReInitTimer();
         LOG(INFO) << "Resuming from " << FLAGS_snapshot;
         LOG(INFO) << "My NonSnapshotting Rank: " << my_rank;
 
-        // sync.reset(new caffe::MPISyncCPU<float>(solver));
+        // sync.reset(new caffe::MPISyncGPU<float>(solver));
         LOG(INFO) << "MPISyncRerun Rank: " << my_rank;
         // sync->Run();
         sync2->Run();
@@ -309,13 +308,13 @@ int train() {
         solver->StartReInitTimer();
         solver->ReInit(solver_param);
         // solver->Restore(FLAGS_snapshot.c_str());
-        shared_ptr<caffe::MPISyncCPU<float> > sync2(new caffe::MPISyncCPU<float>(solver));
+        shared_ptr<caffe::MPISyncGPU<float> > sync2(new caffe::MPISyncGPU<float>(solver));
         solver->StopReInitTimer();
         // LOG(INFO) << "Resuming from " << FLAGS_snapshot;
         // solver->Restore(FLAGS_snapshot.c_str());
         LOG(INFO) << "My NonSnapshotting From Beginning Rank: " << my_rank;
 
-        // sync.reset(new caffe::MPISyncCPU<float>(solver));
+        // sync.reset(new caffe::MPISyncGPU<float>(solver));
         LOG(INFO) << "MPISyncRerun Rank: " << my_rank;
         // sync->Run();
         sync2->Run();
@@ -345,7 +344,6 @@ int train() {
   return 0;
 }
 RegisterBrewFunction(train);
-
 
 // Test: score a model.
 int test() {
@@ -428,7 +426,6 @@ int test() {
   return 0;
 }
 RegisterBrewFunction(test);
-
 
 // Time: benchmark the execution time of a model.
 int time() {
@@ -570,7 +567,7 @@ int main(int argc, char** argv) {
     if (FLAGS_par != "") {
       // only log info from master
       if (caffe::mpi::comm_rank() > 0) {
-        FLAGS_minloglevel = 2;
+        // FLAGS_minloglevel = 2;
       }
       LOG(INFO) << "MPI is initialized, disabling logging from other ranks";
     }

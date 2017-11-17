@@ -7,8 +7,8 @@
 #include "caffe/net.hpp"
 #include "caffe/solver_factory.hpp"
 
-#ifdef CAFFE_FT
 #include "caffe/mpi.hpp"
+#ifdef CAFFE_FT
 #include <tuple>
 #endif
 
@@ -113,7 +113,11 @@ class Solver {
   // Invoked at specific points during an iteration
   class Callback {
    public:
+#ifdef CAFFE_FT
+    virtual std::tuple<int, bool>  allreduce(int param_id) = 0;
+#else
     virtual void allreduce(int param_id) = 0;
+#endif
     virtual void syncCommStream() = 0;
 
    protected:
@@ -144,8 +148,8 @@ class Solver {
   // that stores the learned net. You should implement the SnapshotSolverState()
   // function that produces a SolverState protocol buffer that needs to be
   // written to disk together with the learned net.
-  void Snapshot(); // Check for implementation of this API
-  
+  // void Snapshot(); // Check for implementation of this API
+
 #ifdef CAFFE_FT
   virtual std::tuple<bool,string> RestartFromSnapshot() {
     if(this->restart_from_snapshot_ && (this->snapshot_count_ > 0))

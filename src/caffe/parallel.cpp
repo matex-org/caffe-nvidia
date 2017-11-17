@@ -217,7 +217,12 @@ void P2PSync<Dtype>::on_start() {
 }
 
 template<typename Dtype>
+#ifdef CAFFE_FT
+std::tuple<int,bool> P2PSync<Dtype>::allreduce() {
+#else
 void P2PSync<Dtype>::allreduce() {
+#endif
+
 #ifndef CPU_ONLY
 #ifdef USE_NCCL
   // only reduce if we haven't in the bwd pass
@@ -231,6 +236,10 @@ void P2PSync<Dtype>::allreduce() {
   }
 #endif  // USE_NCCL
 #endif  // CPU_ONLY
+#ifdef CAFFE_FT
+  std::tuple<int,bool> dummy(0,false);
+  return dummy;
+#endif /*CAFFE_FT*/
 }
 
 template<typename Dtype>
@@ -257,6 +266,10 @@ void P2PSync<Dtype>::allreduce(int param_id) {
   }
 #endif  // USE_NCCL
 #endif  // CPU_ONLY
+#ifdef CAFFE_FT
+  std::tuple<int,bool> dummy(0,false);
+  return dummy;
+#endif /*CAFFE_FT*/
 }
 
 template <typename Dtype>
@@ -264,10 +277,6 @@ void P2PSync<Dtype>::syncCommStream() {
 #ifndef CPU_ONLY
   CUDA_CHECK(cudaStreamSynchronize(comm_streams_[0]));
 #endif
-#ifdef CAFFE_FT
-  std::tuple<int,bool> dummy(0,false);
-  return dummy;
-#endif /*CAFFE_FT*/
 }
 
 template<typename Dtype>
