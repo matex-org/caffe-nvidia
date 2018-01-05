@@ -84,6 +84,9 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   }
   else {
       batch->dirty = true;
+      batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+      if(this->output_labels_)
+        batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
       if(cache_size_ == 0 || caches_[0]->size == 0) {
         prefetch_free_.push(batch);
       }

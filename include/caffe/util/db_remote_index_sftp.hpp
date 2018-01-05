@@ -186,6 +186,9 @@ class RemoteIndexSFTPEnv
               fprintf(stderr,"The server is unknown. Do you trust the host key?\n");
               fprintf(stderr, "Public key hash: %s\n", hexa);
               free(hexa);
+              fprintf(stderr, "Trusting the remote host for now");
+              /*
+               * TODO: REVERT THIS
               if (fgets(buf, sizeof(buf), stdin) == NULL)
               {
                   free(hash);
@@ -201,7 +204,7 @@ class RemoteIndexSFTPEnv
                   fprintf(stderr, "Error %s\n", strerror(errno));
                   free(hash);
                   return -1;
-              }
+              }*/
               break;
           case SSH_SERVER_ERROR:
               fprintf(stderr, "Error %s", ssh_get_error(session));
