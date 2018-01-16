@@ -54,14 +54,15 @@ template <typename Dtype>
 class Cache
 {
   public:
-  bool * dirty; //Tells if cache position can be written over
+  // bool * dirty; //Tells if cache position can be written over
+  std::vector<boost::atomic<bool> > dirty; 
   // boost::atomic<volatile bool> * pushed_to_gpu; //Tells if cache position can been pushed to gpu
   class Cache * next; //The cache above me
   class Cache * prev; //The cache below me
   string disk_location; //File location for disk caching
   bool prefetch; //Is this cache replaced in the prefetcher thread
   bool full_replace; //Has the whole cache been replaced
-  int size; //Number of batches this cache stores
+  boost::atomic<int> size; //Number of batches this cache stores 
   int refill_start;
   mutable boost::atomic<int> used; //Tells your dirty slot or how many slots are dirty
   int eviction_rate; //Reuse count
@@ -117,6 +118,7 @@ class MemoryCache : public Cache <Dtype>
   virtual void refill(Cache<Dtype> * next_cache);
   virtual void reshape(vector<int> * top_shape, vector<int> * label_shape);
   virtual void mutate_data(bool labels, const int level);
+  std::queue<Batch<Dtype>*> readin_que; 
 };
 
 template <typename Dtype>
@@ -125,6 +127,8 @@ class DiskCache : public Cache <Dtype>
   public:
 
   //File stream
+  int disk_cache_min; 
+  int disk_cache_max;
   boost::mutex mtx_;
   bool open, r_open;
   fstream cache;
@@ -138,6 +142,7 @@ class DiskCache : public Cache <Dtype>
   virtual bool empty();
   virtual PopBatch<Dtype> pop();
   virtual void fill(bool in_cache);
+  virtual void fill_pos(int pos);
   virtual void shuffle();
   virtual void refill(Cache<Dtype> * next_cache);
   virtual void reshape(vector<int> * top_shape, vector<int> * label_shape);

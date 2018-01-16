@@ -20,34 +20,14 @@ namespace caffe {
 template <typename Dtype>
 void Cache<Dtype>::rate_replace_policy(int next_cache)
 {
-  //Shuffle until we hit the eviction rate
-  /*
-  if(current_shuffle_count < eviction_rate)
-  {
-    shuffle();
-
-    //This var is set by the cache once we have shuffled all the entries of the
-    //Entire cache
-    if(full_replace)
-    {
-      //LOG(INFO) << "Shuffling Level " << next_cache-1 << " " << size;
-      current_shuffle_count++;
-      full_replace=0;
-    }
-  }
-  */
-  // else if(next == NULL) //Last level -> refill
   if(next == NULL) //Last level -> refill
   {
     //Fill in the cache -> we pass true to indicate to not use openmp in the data
     //Transformer since it will spawn more oepnmp threads
-    fill(true);
-   //  if(full_replace)
-   //  {
-   //    //LOG(INFO) << "Filling Level " << next_cache-1 << " " << size;
-   //    current_shuffle_count=0;
-   //    full_replace=0;
-   //  }
+    typedef DiskCache<Dtype> DiskCacheType; 
+    DiskCacheType *diskcache;
+    if(!(diskcache = dynamic_cast<DiskCacheType *>(this)))
+      fill(true);
   }
   else //Refill level of the cache
   {
@@ -56,42 +36,26 @@ void Cache<Dtype>::rate_replace_policy(int next_cache)
     if(next->prefetch && next->empty() ) //empty cache
       (next->*(next->refill_policy))(next_cache+1);
 
-    refill(next);
-
-    if(full_replace)
-    {
-      //LOG(INFO) << "Refilling Level " << next_cache-1 << " " << size;
-      current_shuffle_count=0;
-      full_replace=0;
-    }
+    typedef DiskCache<Dtype> DiskCacheType;
+    DiskCacheType *diskcache;
+    diskcache = dynamic_cast<DiskCacheType *>(next);
+    if(diskcache->size < diskcache->disk_cache_min)
+      fill(true);
+    else
+      refill(next);
   }
 }
 //Same as above but for within a node
 template <typename Dtype>
 void Cache<Dtype>::local_rate_replace_policy(int next_cache)
 {
-  /*
-  if(current_shuffle_count < eviction_rate)
-  {
-    //LOG(INFO) << "Shuffling Level " << next_cache-1 << " " << size;
-    shuffle();
-    if(full_replace)
-    {
-      current_shuffle_count++;
-      full_replace=0;
-    }
-  }
-  */
   // else if(next == NULL) //Last level -> refill
   if(next == NULL) //Last level -> refill
   {
-    fill(false); //We can use openmp here so false is passed since we are within
-    //Caffe's main thread
-    if(full_replace)
-    {
-      // current_shuffle_count=0;
-      full_replace=0;
-    }
+    typedef DiskCache<Dtype> DiskCacheType;
+    DiskCacheType *diskcache;
+    if(!(diskcache = dynamic_cast<DiskCacheType *>(this)))
+      fill(false); //We can use openmp here so false is passed since we are within
   }
   else
   {
@@ -99,14 +63,13 @@ void Cache<Dtype>::local_rate_replace_policy(int next_cache)
     //Refill higher levels
     if(!next->prefetch && next->empty() ) //empty cache
       (next->*(next->local_refill_policy))(next_cache+1);
-
-    refill(next);
-
-    if(full_replace)
-    {
-      // current_shuffle_count=0;
-      full_replace=0;
-    }
+    typedef DiskCache<Dtype> DiskCacheType;
+    DiskCacheType *diskcache;
+    diskcache = dynamic_cast<DiskCacheType *>(next);
+    if (diskcache->size < diskcache->disk_cache_min)
+      fill(true);
+    else
+      refill(next);
   }
 }
 
@@ -290,17 +253,24 @@ void MemoryCache<Dtype>::fill(bool in_thread)
 template <typename Dtype>
 void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
 {
-  PopBatch<Dtype> pbatch;
+  //PopBatch<Dtype> pbatch;
+  //Batch<Dtype> * temp_cache; 
 
   for (int j = Cache<Dtype>::last_i; j < Cache<Dtype>::size; ++j) {
     Cache<Dtype>::last_i=j;
     if(Cache<Dtype>::dirty[j] == true)
     {
-      pbatch = next_cache->pop();
-      cache[j].data_.CopyFrom( pbatch.batch->data_ );
-      cache[j].label_.CopyFrom( pbatch.batch->label_ );
-      *pbatch.dirty = true;
-	  pbatch.batch->dirty = true;
+      if(Cache<Dtype>::data_layer->reader_full_queue_size() > 0) {
+        Cache<Dtype>::data_layer->load_batch(&cache[j]);
+      } 
+      else {
+        pbatch = next_cache->pop();
+        cache[j].data_.CopyFrom( pbatch.batch->data_ );
+        cache[j].label_.CopyFrom( pbatch.batch->label_ );
+        *pbatch.dirty = true;
+        pbatch.batch->dirty = true;
+      }
+
       Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
       Cache<Dtype>::dirty[j] = false;
       cache[j].dirty = false;
@@ -531,62 +501,99 @@ void DiskCache<Dtype>::fill(bool in_thread)
     }
 
   }
-  Dtype * data = cache_buffer->data_.mutable_cpu_data();
-  Dtype * label = cache_buffer->label_.mutable_cpu_data();
+  // Not needed as cache_buffer is already initialized; 
+  // Dtype * data = cache_buffer->data_.mutable_cpu_data();
+  // Dtype * label = cache_buffer->label_.mutable_cpu_data();
   char * bytes;
-  for (int j = Cache<Dtype>::last_i; j < Cache<Dtype>::size; ++j) {
-    Cache<Dtype>::last_i=j;
-    if(Cache<Dtype>::dirty[j] == true)
-    {
-      boost::lock_guard<boost::mutex> lck (this->mtx_);
-      //LOG(INFO) << "Disk fill";
-      // Cache<Dtype>::data_layer->load_batch(cache_buffer, in_thread);
-      Cache<Dtype>::data_layer->load_batch(cache_buffer);
-      int image_count = cache_buffer->data_.shape(0);
-      int datum_size = cache_buffer->data_.shape(1);
-      datum_size *= cache_buffer->data_.shape(2);
-      datum_size *= cache_buffer->data_.shape(3);
-      datum_size *= sizeof(Dtype);
-      DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count;
-      DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size;
-      DLOG(INFO) << "DISK CACHE FILL:filebuf size: " << 2*sizeof(int)+image_count*(datum_size+sizeof(Dtype));
 
-      cache.seekg (j*(2*sizeof(int)+image_count*(datum_size+sizeof(Dtype))), ios::beg);
+  for(int qcount = 0; qcount < Cache<Dtype>::data_layer->get_copy_qsize(); ++qcount ) {
 
-      // cache.write( (char *)&image_count, sizeof(int));
-      cache.write(reinterpret_cast<char*>(&image_count), sizeof(int));
-      // cache.write( (char *)&datum_size, sizeof(int));
-      cache.write(reinterpret_cast<char*>(&datum_size), sizeof(int));
-      for (int i = 0; i < image_count; ++i)
-      {
-        int offset = cache_buffer->data_.offset(i);
-        bytes = (char*) (data+offset);
-        cache.write( bytes, datum_size);
-        bytes = (char*) (label+i);
-        cache.write( bytes, sizeof(Dtype));
-      }
-      cache.flush();
+    if (Cache<Dtype>::size < this->disk_cache_max) {
+      boost::lock_guard<boost::mutex> lck(this->mtx_);
+
+      fill_pos(Cache<Dtype>::size);
+      
       Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
-      Cache<Dtype>::dirty[j] = false;
-      Cache<Dtype>::last_i++;
-      cache_buffer->count = this->reuse_count;
+      Cache<Dtype>::dirty.push_back(false);
+      Cache<Dtype>::size += 1;
     }
-    else
-      break;
+    else {
+      for (int j = Cache<Dtype>::last_i; j < Cache<Dtype>::size; ++j) {
+        Cache<Dtype>::last_i = j;
+        
+        if(Cache<Dtype>::dirty[j] == true)
+        {
+          boost::lock_guard<boost::mutex> lck (this->mtx_);
+          //LOG(INFO) << "Disk fill";
+          // Cache<Dtype>::data_layer->load_batch(cache_buffer, in_thread);
+
+          // Cache<Dtype>::data_layer->load_batch(cache_buffer);
+          fill_pos(j); 
+          Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
+          Cache<Dtype>::dirty[j] = false;
+          Cache<Dtype>::last_i++;
+          // cache_buffer->count = this->reuse_count;
+        } 
+        else
+          break;
+      }
+    }
+    //delete cache_buffer; // free the copied memory; 
   }
-  if(Cache<Dtype>::last_i == Cache<Dtype>::size)
-  {
-    Cache<Dtype>::full_replace = true;
-    Cache<Dtype>::last_i=0;
+
+  if ((int temp_count = Cache<Dtype>::data_layer->get_copy_qsize()) > 100) {
+    for(int i = 100 ; i < temp_count; ++i) {
+      Cache<Dtype>::data_layer->copy_batch(cache_buffer);
+      delete cache_buffer; 
+    }
   }
+
+  // if (Cache<Dtype>::data_layer->get_copy_qsize() > 0) {
+
+  }
+    if (Cache<Dtype>::last_i == Cache<Dtype>::size) {
+      Cache<Dtype>::full_replace = true;
+      Cache<Dtype>::last_i = 0;
+    }
   //cache.seekg (0, ios::beg);
   //current_offset = 0;
   //Cache<Dtype>::used=0;
   //Cache<Dtype>::unlock();
 }
-template <typename Dtype>
-void DiskCache<Dtype>::shuffle()
-{
+
+template<typename Dtype> void DiskCache<Dtype>::fill_pos(int pos) {
+  boost::lock_guard<boost::mutex> lck(this->mtx_);
+  Cache<Dtype>::data_layer->copy_batch(cache_buffer);
+  int image_count = cache_buffer->data_.shape(0);
+  int datum_size = cache_buffer->data_.shape(1);
+  datum_size *= cache_buffer->data.shape(2);
+  datum_size *= cache_buffer->data_.shape(3);
+  datum_size *= sizeof(Dtype);
+  DLOG(INFO) << "DISK CACHE FILL:Image count: " << image_count;
+  DLOG(INFO) << "DISK CACHE FILL:Datum size: " << datum_size;
+  DLOG(INFO) << "DISK CACHE FILL:filebuf size: "
+             << 2 * sizeof(int) + image_count * (datum_size + sizeof(Dtype));
+
+  // Seek last element
+  cache.seekg(
+      pos *
+      (2 * sizeof(int) + image_count * (datum_size + sizeof(Dtype)), ios::beg));
+  cache.write(reinterpret_cast<char *>(&image_count), sizeof(int));
+  cache.write(reinterpret_cast<char *>(&datum_size), sizeof(int));
+  // writing each image and its label
+  for (int i = 0; i < image_count; ++i) {
+    int offset = cache_buffer->data_.offset(i);
+    bytes = (char *)(data + offset);
+    cache.write(bytes, datum_size);
+    bytes = (char *)(label + i);
+    cache.write(bytes, sizeof(Dtype));
+  }
+  cache.flush();
+  delete cache_buffer; 
+}
+
+    template <typename Dtype>
+    void DiskCache<Dtype>::shuffle() {
   //Cache<Dtype>::lock();
   cache.seekg (0, ios::beg);
   int image_count;

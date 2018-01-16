@@ -274,6 +274,14 @@ DLOG(INFO) << "InternalThrdEnt";
             batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
           }
         }
+        
+        // copy PopBatch to disk_prefetch_copy_ be copied to the disk cache
+        // PopBatch<Dtype> pbatch_copy; //  = new PopBatch<Dtype>();
+        Batch<Dtype> *batch_copy = new Batch<Dtype>();
+        batch_copy->data_.CopyFrom(batch->data_);
+        batch_copy->label_.CopyFrom(batch->label_);
+        disk_copy_.push(batch_copy); 
+
 #ifndef CPU_ONLY
         if (Caffe::mode() == Caffe::GPU) {
           batch->data_.data()->async_gpu_push();
