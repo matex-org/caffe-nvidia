@@ -79,27 +79,44 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     if(thread_safe)
       prefetch = true;
 
+    typedef boost::shared_ptr<bool> shared_bptr_type;
     if(param.data_param().cache(j).type() == CacheParameter::HEAP)
     {
       //Create a new cache, set size, a dirty structure
       caches_[i-1] = new MemoryCache<Dtype>;
       caches_[i-1]->size = param.data_param().cache(j).size();
+      std::vector<shared_bptr_type> v_dirty(
+                  caches_[i-1]->size.load(boost::memory_order_relaxed));
+                  //, boost::make_shared<shared_bptr_type>(true));
+      for( int a = 0 ; a < v_dirty.size(); ++a)
+        v_dirty[a] = boost::make_shared<bool>(true);
+
+      boost::shared_ptr<std::vector<shared_bptr_type> > dirty =
+          // boost::make_shared<std::vector<shared_bptr_type> >(&v_dirty);
+          boost::make_shared<std::vector<shared_bptr_type> >(v_dirty);
       // caches_[i-1]->create( new Batch<Dtype>[caches_[i-1]->size], new bool[caches_[i-1]->size], thread_safe );
-      caches_[i-1]->create( new Batch<Dtype>[caches_[i-1]->size]
-          , new bool[caches_[i-1]->size]
+      caches_[i-1]->create(
+          new Batch<Dtype>[caches_[i-1]->size.load(boost::memory_order_relaxed)]
           // , new bool[caches_[i-1]->size]
-          , new bool[caches_[i-1]->size]
+          , dirty
           , thread_safe );
     }
     else if(param.data_param().cache(j).type() == CacheParameter::DISK)
     {
       caches_[i-1] = new DiskCache<Dtype>;
       caches_[i-1]->size = param.data_param().cache(j).size();
+      std::vector<shared_bptr_type> v_dirty(
+          caches_[i-1]->size.load(boost::memory_order_relaxed));
+          // , boost::make_shared<bool>(true));
+      for (int k = 0; k < v_dirty.size(); ++k)
+        v_dirty[k] = boost::make_shared<bool>(true);
+
+      boost::shared_ptr<std::vector<boost::shared_ptr<bool> > >dirty =
+          boost::make_shared<std::vector<shared_bptr_type> >(v_dirty);
       // caches_[i-1]->create( new Batch<Dtype>[2], new bool[caches_[i-1]->size], thread_safe );
       caches_[i-1]->create( new Batch<Dtype>[2]
-          , new bool[caches_[i-1]->size]
           // , new bool[caches_[i-1]->size]
-          , new bool[caches_[i-1]->size]
+          , dirty
           , thread_safe );
     }
 //  #endif
@@ -118,7 +135,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     // Pass data_layer (used for filling)
     caches_[i-1]->data_layer = this;
     //Initially needs to be filled
-    caches_[i-1]->used = caches_[i-1]->size;
+    caches_[i-1]->used = caches_[i-1]->size.load(boost::memory_order_relaxed);
     caches_[i-1]->refill_start = 0;
     caches_[i-1]->current_shuffle_count = 0;
     caches_[i-1]->eviction_rate = param.data_param().cache(j).eviction_rate();
@@ -274,13 +291,13 @@ DLOG(INFO) << "InternalThrdEnt";
             batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
           }
         }
-        
+
         // copy PopBatch to disk_prefetch_copy_ be copied to the disk cache
         // PopBatch<Dtype> pbatch_copy; //  = new PopBatch<Dtype>();
         Batch<Dtype> *batch_copy = new Batch<Dtype>();
         batch_copy->data_.CopyFrom(batch->data_);
         batch_copy->label_.CopyFrom(batch->label_);
-        disk_copy_.push(batch_copy); 
+        disk_copy_.push(batch_copy);
 
 #ifndef CPU_ONLY
         if (Caffe::mode() == Caffe::GPU) {

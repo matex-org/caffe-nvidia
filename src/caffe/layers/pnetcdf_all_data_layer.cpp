@@ -454,6 +454,9 @@ size_t PnetCDFAllDataLayer<Dtype>::next_row() {
   return row;
 }
 
+template <typename Dtype>
+size_t PnetCDFAllDataLayer<Dtype>::reader_full_queue_size() { return 0;}
+
 INSTANTIATE_CLASS(PnetCDFAllDataLayer);
 REGISTER_LAYER_CLASS(PnetCDFAllData);
 

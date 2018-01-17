@@ -46,7 +46,7 @@ template <typename Dtype>
 struct PopBatch
 {
   Batch<Dtype>* batch;
-  bool * dirty;
+  boost::shared_ptr<bool> dirty;
   // boost::atomic<volatile bool> * pushed_to_gpu;
 };
 
@@ -55,14 +55,15 @@ class Cache
 {
   public:
   // bool * dirty; //Tells if cache position can be written over
-  std::vector<boost::atomic<bool> > dirty; 
+  // std::vector<boost::atomic<bool> > dirty;
+  boost::shared_ptr<std::vector<boost::shared_ptr<bool> > > dirty;
   // boost::atomic<volatile bool> * pushed_to_gpu; //Tells if cache position can been pushed to gpu
   class Cache * next; //The cache above me
   class Cache * prev; //The cache below me
   string disk_location; //File location for disk caching
   bool prefetch; //Is this cache replaced in the prefetcher thread
   bool full_replace; //Has the whole cache been replaced
-  boost::atomic<int> size; //Number of batches this cache stores 
+  boost::atomic<int> size; //Number of batches this cache stores
   int refill_start;
   mutable boost::atomic<int> used; //Tells your dirty slot or how many slots are dirty
   int eviction_rate; //Reuse count
@@ -78,9 +79,12 @@ class Cache
   BasePrefetchingDataLayer<Dtype> * data_layer;
 
   //Inits Cache: ptr is the batch buffer memory, pt2 is the dirty bit memory, thread_safe tells if cache is on prefetch
+  virtual void create( void * ptr
+      , boost::shared_ptr<std::vector<boost::shared_ptr<bool> > > ptr2
+      , bool thread_safe ) { };
   // virtual void create( void * ptr, bool * ptr2, bool thread_safe ) { };
-  virtual void create( void * ptr, bool * ptr2
-        , bool * ptr3, bool thread_safe ) { };
+  // virtual void create( void * ptr, bool * ptr2
+  //       , bool * ptr3, bool thread_safe ) { };
   virtual bool empty() { return false; };
   //Pops a batch from the cache -> includes ptr to dirty structure
   virtual PopBatch<Dtype> pop() { PopBatch<Dtype> nothing; return nothing; };
@@ -108,8 +112,12 @@ class MemoryCache : public Cache <Dtype>
   //Swaps image in batch1 at batchPos1 with image in batch2 at batchPos2
   static void shuffle_cache(Batch<Dtype>* batch1, int batchPos1, Batch<Dtype>*  batch2, int batchPos2);
 
-  virtual void create( void * ptr, bool * ptr2
-          , bool * ptr3, bool thread_safe );
+  virtual void create( void * ptr
+      , boost::shared_ptr<std::vector<boost::shared_ptr<bool> > >ptr2
+      , bool thread_safe );
+  // virtual void create( void * ptr, bool * ptr2, bool thread_safe );
+  // virtual void create( void * ptr, bool * ptr2
+  //         , bool * ptr3, bool thread_safe );
   virtual bool empty();
   virtual PopBatch<Dtype> pop();
   virtual void shuffle();
@@ -118,7 +126,7 @@ class MemoryCache : public Cache <Dtype>
   virtual void refill(Cache<Dtype> * next_cache);
   virtual void reshape(vector<int> * top_shape, vector<int> * label_shape);
   virtual void mutate_data(bool labels, const int level);
-  std::queue<Batch<Dtype>*> readin_que; 
+  std::queue<Batch<Dtype>*> readin_que;
 };
 
 template <typename Dtype>
@@ -127,7 +135,7 @@ class DiskCache : public Cache <Dtype>
   public:
 
   //File stream
-  int disk_cache_min; 
+  int disk_cache_min;
   int disk_cache_max;
   boost::mutex mtx_;
   bool open, r_open;
@@ -136,9 +144,13 @@ class DiskCache : public Cache <Dtype>
   Batch<Dtype> * cache_buffer;
   Batch<Dtype> * cache_read_buffer;
   unsigned int current_offset;
-  void shuffle_cache(int batch1, int batchPos1, int  batch2, int batchPos2, int image_count, int data_count, int label_count);
-  virtual void create( void * ptr, bool * ptr2
-          , bool * ptr3, bool thread_safe);
+  void shuffle_cache(int batch1, int batchPos1, int  batch2, int batchPos2
+      , int image_count, int data_count, int label_count);
+  virtual void create( void * ptr
+      , boost::shared_ptr<std::vector<boost::shared_ptr<bool> > > ptr2, bool thread_safe);
+  // virtual void create( void * ptr, bool * ptr2, bool thread_safe);
+  // virtual void create( void * ptr, bool * ptr2
+  //         , bool * ptr3, bool thread_safe);
   virtual bool empty();
   virtual PopBatch<Dtype> pop();
   virtual void fill(bool in_cache);

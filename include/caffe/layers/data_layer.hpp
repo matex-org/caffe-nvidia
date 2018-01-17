@@ -28,13 +28,13 @@ class DataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual inline int ExactNumBottomBlobs() const { return 0; }
   virtual inline int MinTopBlobs() const { return 1; }
   virtual inline int MaxTopBlobs() const { return 2; }
+
+ protected:
 #ifdef USE_DEEPMEM
   virtual size_t reader_full_queue_size() {
       return reader_.full().size();
   }
 #endif
-
- protected:
   virtual void load_batch(Batch<Dtype>* batch);
 
   DataReader reader_;

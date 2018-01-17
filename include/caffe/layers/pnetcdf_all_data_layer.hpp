@@ -31,6 +31,9 @@ class PnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
   virtual inline int MaxTopBlobs() const { return 2; }
 
  protected:
+// #ifdef USEDEEPMEM
+  virtual size_t reader_full_queue_size(); //return dummy value
+// #endif
   virtual void load_pnetcdf_file_data(const string& filename);
   virtual void load_batch(Batch<Dtype>* batch);
   virtual vector<int> get_datum_shape();
@@ -52,4 +55,3 @@ class PnetCDFAllDataLayer : public BasePrefetchingDataLayer<Dtype> {
 }  // namespace caffe
 
 #endif  // PNETCDF_ALL_CAFFE_DATA_LAYER_HPP_
-

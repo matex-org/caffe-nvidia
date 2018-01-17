@@ -7,6 +7,7 @@
 #include <fstream>
 #include "caffe/util/cache.hpp"
 #include <boost/atomic.hpp>
+#include <boost/memory_order.hpp>
 #include <cstdlib>
 #endif
 
@@ -114,15 +115,15 @@ class BasePrefetchingDataLayer :
 // #endif
 
 #ifdef USE_DEEPMEM
-  virtual size_t reader_full_queue_size() {
-    caffe::DataLayer<Dtype> *d_layer =
-        dynamic_cast<caffe::DataLayer<Dtype> *>(this);
-    return d_layer->reader_full_queue_size();
-  }
+  virtual size_t reader_full_queue_size() = 0; //{
+    // DataLayer<Dtype> *d_layer =
+    //    dynamic_cast<DataLayer<Dtype> *>(this);
+    // return d_layer->reader_full_queue_size();
+  //}
   void rate_replace_policy(int next_cache);
   void thread_rate_replace_policy(int next_cache);
-  
-  void copy_batch(Batch<Dtype> *cbatch) { cbatch = disk_copy_.pop(); }
+
+  void copy_batch(Batch<Dtype> *cbatch) { cbatch = disk_copy_.front(); disk_copy_.pop();}
   std::size_t get_copy_qsize() { return disk_copy_.size(); }
 
   GenRandNumbers randomGen;
@@ -140,11 +141,10 @@ class BasePrefetchingDataLayer :
   std::vector<PopBatch<Dtype>* > pop_prefetch_;
   BlockingQueue<PopBatch<Dtype> > pop_prefetch_free_;
   BlockingQueue<PopBatch<Dtype> > pop_prefetch_full_;
-  
+
   // copy batch into disk as it is fed to full queue
-  // BlockingQueue<PopBatch<Dtype> > disk_copy_; 
+  // BlockingQueue<PopBatch<Dtype> > disk_copy_;
   std::queue<Batch<Dtype>*> disk_copy_;
-  
 
   Blob<Dtype> transformed_data_;
 
