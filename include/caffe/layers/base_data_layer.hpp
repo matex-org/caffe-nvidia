@@ -99,6 +99,7 @@ class BasePrefetchingDataLayer :
     historical_accuracy_.push_back(value);
   }
   int cache_size_;
+  bool disk_cache_;
   virtual void shuffle();
 #endif
 

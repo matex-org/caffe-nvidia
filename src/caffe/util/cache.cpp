@@ -20,6 +20,8 @@ namespace caffe {
 template <typename Dtype>
 void Cache<Dtype>::rate_replace_policy(int next_cache)
 {
+  // typedef DiskCache<Dtype> DiskCacheType;
+  // DiskCacheType *diskcache;
   if(next == NULL) //Last level -> refill
   {
     //Fill in the cache -> we pass true to indicate to not use openmp in the data
@@ -39,10 +41,11 @@ void Cache<Dtype>::rate_replace_policy(int next_cache)
     typedef DiskCache<Dtype> DiskCacheType;
     DiskCacheType *diskcache;
     diskcache = dynamic_cast<DiskCacheType *>(next);
-    if(diskcache->size < diskcache->disk_cache_min)
-      fill(true);
-    else
+    if(diskcache->size >= diskcache->disk_cache_min_size &&
+        (Cache<Dtype>::data_layer->reader_full_queue_size() == 0))
       refill(next);
+    else
+      fill(true);
   }
 }
 //Same as above but for within a node
@@ -66,7 +69,7 @@ void Cache<Dtype>::local_rate_replace_policy(int next_cache)
     typedef DiskCache<Dtype> DiskCacheType;
     DiskCacheType *diskcache;
     diskcache = dynamic_cast<DiskCacheType *>(next);
-    if (diskcache->size < diskcache->disk_cache_min)
+    if (diskcache->size < diskcache->disk_cache_min_size)
       fill(true);
     else
       refill(next);
@@ -151,7 +154,9 @@ PopBatch<Dtype> MemoryCache<Dtype>::pop()
   //Wait til someone fills your slot or if somehow you get in a bad state and
   //This thread is suppose to refill the slot, but managed not to -> refill the
   //State above you
-  while((*Cache<Dtype>::dirty)[my_slot])
+  DLOG(INFO) << "Cache Dirty: " << *(*Cache<Dtype>::dirty)[my_slot];
+
+  while(*(*Cache<Dtype>::dirty)[my_slot])
   {
     if(Cache<Dtype>::prev && this->prev->prefetch == Cache<Dtype>::prefetch)
     {
@@ -233,7 +238,9 @@ void MemoryCache<Dtype>::fill(bool in_thread)
   //Same logic as shuffle but it is reading data from the data_layer
   //in_thread indicates it is in a thread other than main
   //this is passed to load_batch which avoids calling openmp if it is true
+  DLOG(INFO) << "Memory Cache fill called.... ";
   for (int j = Cache<Dtype>::last_i; j < Cache<Dtype>::size; ++j) {
+    DLOG(INFO) << "MemCache Last_i: " << Cache<Dtype>::last_i;
     Cache<Dtype>::last_i=j;
     if(*(*Cache<Dtype>::dirty)[j] == true)
     {
@@ -254,6 +261,7 @@ void MemoryCache<Dtype>::fill(bool in_thread)
     Cache<Dtype>::full_replace = true;
     Cache<Dtype>::last_i=0;
   }
+  DLOG(INFO) << "Memory Cache fill called(end).... ";
 }
 template <typename Dtype>
 void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
@@ -420,6 +428,8 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {
     Cache<Dtype>::slot = 0;
   }
 
+  DLOG(INFO) << "Cache Dirty: " << *(*Cache<Dtype>::dirty)[my_slot];
+
   while(*(*Cache<Dtype>::dirty)[my_slot])
   {
     if(Cache<Dtype>::prev && this->prev->prefetch == Cache<Dtype>::prefetch)
@@ -487,6 +497,7 @@ template <typename Dtype>
 void DiskCache<Dtype>::fill(bool in_thread)
 {
   //Cache<Dtype>::lock();
+  DLOG(INFO) << "DiskCache Fill called";
   if(!open)
   {
     LOG(INFO) << "Cache Location" << Cache<Dtype>::disk_location;
@@ -510,8 +521,8 @@ void DiskCache<Dtype>::fill(bool in_thread)
 
   for(int qcount = 0; qcount < Cache<Dtype>::data_layer->get_copy_qsize(); ++qcount ) {
 
-    if (Cache<Dtype>::size < this->disk_cache_max) {
-      boost::lock_guard<boost::mutex> lck(this->mtx_);
+    if (Cache<Dtype>::size < this->disk_cache_max_size) {
+      // boost::lock_guard<boost::mutex> lck(this->mtx_);
 
       fill_pos(Cache<Dtype>::size);
 
@@ -525,7 +536,7 @@ void DiskCache<Dtype>::fill(bool in_thread)
 
         if(*(*Cache<Dtype>::dirty)[j] == true)
         {
-          boost::lock_guard<boost::mutex> lck (this->mtx_);
+          // boost::lock_guard<boost::mutex> lck (this->mtx_);
           //LOG(INFO) << "Disk fill";
           // Cache<Dtype>::data_layer->load_batch(cache_buffer, in_thread);
 
@@ -542,12 +553,14 @@ void DiskCache<Dtype>::fill(bool in_thread)
     }
     //delete cache_buffer; // free the copied memory;
   }
-
+  // typedef DiskCache<Dtype> DiskCacheType;
+  // DiskCacheType * diskcache;
+  // diskcache = dynamic_cast<DiskCacheType *>(this);
   int temp_count;
-  if ((temp_count = Cache<Dtype>::data_layer->get_copy_qsize()) > 100) {
-    for(int i = 100 ; i < temp_count; ++i) {
+  if ((temp_count = Cache<Dtype>::data_layer->get_copy_qsize()) > 2*this->disk_cache_min_size) {
+    for(int i = this->disk_cache_min_size ; i < temp_count; ++i) {
       Cache<Dtype>::data_layer->copy_batch(cache_buffer);
-      delete cache_buffer;
+      // delete cache_buffer;
     }
   }
 
@@ -561,6 +574,7 @@ void DiskCache<Dtype>::fill(bool in_thread)
   //current_offset = 0;
   //Cache<Dtype>::used=0;
   //Cache<Dtype>::unlock();
+  DLOG(INFO) << "DiskCache Fill called(end)";
 }
 
 template <typename Dtype>
@@ -596,7 +610,7 @@ void DiskCache<Dtype>::fill_pos(int pos) {
     cache.write(bytes, sizeof(Dtype));
   }
   cache.flush();
-  delete cache_buffer;
+  // delete cache_buffer;
 }
 
     template <typename Dtype>

@@ -135,8 +135,8 @@ class DiskCache : public Cache <Dtype>
   public:
 
   //File stream
-  int disk_cache_min;
-  int disk_cache_max;
+  int disk_cache_min_size;
+  int disk_cache_max_size;
   boost::mutex mtx_;
   bool open, r_open;
   fstream cache;

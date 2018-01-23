@@ -14,7 +14,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
 #ifdef USE_DEEPMEM
   typedef MemoryCache<Dtype> MemCacheType;
   Batch<Dtype> * batch;
-  volatile bool * dirty;
+  // volatile bool * dirty;
   PopBatch<Dtype> pbatch;
   if(this->cache_size_)
   {
@@ -84,9 +84,10 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   }
   else {
       batch->dirty = true;
-      batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
-      if(this->output_labels_)
-        batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+      // batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+      // if(this->output_labels_)
+      //  batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+      // DLOG(INFO) << "Used Batch Head Reset At CPU.... " ;
       if(cache_size_ == 0 || caches_[0]->size == 0) {
         prefetch_free_.push(batch);
       }

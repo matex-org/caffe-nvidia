@@ -746,6 +746,8 @@ message CacheParameter {
   optional CacheStoragePolicy type = 4 [default = HEAP] ;
   optional uint32 eviction_rate = 5 [default = 0];
   optional string disk_location = 6 [default = "./"];
+  optional uint32 cache_minsize = 7 [default = 0];
+  optional uint32 cache_maxsize = 8 [default = 0];
 }
 //end USE_DEEPMEM
 
@@ -808,8 +810,8 @@ message RemoteDataParameter {
   //cache_size equal 0 means it will cache everything,
   //and will forward data from cache only
   optional uint32 cache_size = 2;
-  optional uint32 disk_cache_min = 10;
-  optional uint32 disk_cache_max = 100;
+  // optional uint32 disk_cache_min = 10;
+  // optional uint32 disk_cache_max = 100;
 
   enum CachePolicy {
     PULL_CONTINOUSLY = 0; //will continously pull from data server
