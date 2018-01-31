@@ -103,6 +103,8 @@ size_t BlockingQueue<T>::size() const {
 
 template class BlockingQueue<Batch<float>*>;
 template class BlockingQueue<Batch<double>*>;
+template class BlockingQueue<shared_ptr<Batch<float> > >;
+template class BlockingQueue<shared_ptr<Batch<double> > >;
 template class BlockingQueue<PopBatch<float>*>;
 template class BlockingQueue<PopBatch<double>*>;
 template class BlockingQueue<PopBatch<float> >;

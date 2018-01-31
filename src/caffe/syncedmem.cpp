@@ -40,6 +40,7 @@ inline void SyncedMemory::to_cpu() {
       own_cpu_data_ = true;
     }
     caffe_gpu_memcpy(size_, gpu_ptr_, cpu_ptr_);
+    // DLOG(INFO) << "HEAD IN SYNC!!!!!!!!!1";
     head_ = SYNCED;
 #else
     NO_GPU;
@@ -61,6 +62,7 @@ inline void SyncedMemory::to_gpu() {
     caffe_gpu_memset(size_, 0, gpu_ptr_);
     head_ = HEAD_AT_GPU;
     own_gpu_data_ = true;
+    DLOG(INFO) << "HEAD IN HEAD_AT_GPU!!!!!!!!!1";
     break;
   case HEAD_AT_CPU:
     if (gpu_ptr_ == NULL) {
@@ -70,6 +72,7 @@ inline void SyncedMemory::to_gpu() {
       own_gpu_data_ = true;
     }
     caffe_gpu_memcpy(size_, cpu_ptr_, gpu_ptr_);
+    // DLOG(INFO) << "HEAD IN SYNC!!!!!!!!!2";
     head_ = SYNCED;
     break;
   case HEAD_AT_GPU:
@@ -114,6 +117,7 @@ void SyncedMemory::set_gpu_data(void* data) {
   }
   gpu_ptr_ = data;
   head_ = HEAD_AT_GPU;
+  DLOG(INFO) << "HEAD IN HEAD_AT_GPU!!!!!!!!!2";
   own_gpu_data_ = false;
 #else
   NO_GPU;
@@ -130,6 +134,7 @@ void* SyncedMemory::mutable_gpu_data() {
 #ifndef CPU_ONLY
   to_gpu();
   head_ = HEAD_AT_GPU;
+  // DLOG(INFO) << "HEAD IN HEAD_AT_GPU!!!!!!!!!3";
   return gpu_ptr_;
 #else
   NO_GPU;
@@ -149,6 +154,7 @@ void SyncedMemory::async_gpu_push() {
   const cudaMemcpyKind put = cudaMemcpyHostToDevice;
   CUDA_CHECK(cudaMemcpyAsync(gpu_ptr_, cpu_ptr_, size_, put, stream_));
   // Assume caller will synchronize on the stream before use
+  // DLOG(INFO) << "HEAD IN SYNC!!!!!!!!!3";
   head_ = SYNCED;
 }
 

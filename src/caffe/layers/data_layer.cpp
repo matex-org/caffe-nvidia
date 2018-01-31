@@ -154,7 +154,7 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   for (int item_id = 0; item_id < batch_size; ++item_id) {
       timer.Start();
       // Get a datum
-      string* str = (reader_.full().pop("Waiting for data"));
+      string* str = (reader_.full().pop("Waiting for data [Load Batch]"));
       read_time += timer.MicroSeconds();
       // Copy label.
       Dtype* label_ptr = NULL;
@@ -188,7 +188,7 @@ void DataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
                                   this->output_labels_, label_ptr,
                                   &(reader_.free())));
       } else {
-        
+
         pool_->runTask(boost::bind(&DataTransformer<Dtype>::TransformPtrEntry,
                                   this->data_transformer_.get(), str, ptr,
                                   rand1, rand2, rand3,

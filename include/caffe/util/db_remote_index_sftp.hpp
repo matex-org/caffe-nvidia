@@ -129,7 +129,7 @@ class RemoteIndexSFTPEnv
         string tmp(string(buffer+pos, i));
         key = "";
         if(tmp[0] == '\0') {
-           LOG(INFO) << "NULL Character Found! ";
+           // DLOG(INFO) << "NULL Character Found! ";
            key = string(tmp.begin() +1, tmp.end());
         }
         else
@@ -142,7 +142,7 @@ class RemoteIndexSFTPEnv
     }
     if(!found)
     {
-      DLOG(INFO) << "Delimiter Not Found!!";
+      // DLOG(INFO) << "Delimiter Not Found!!";
       memcpy(buffer,buffer+pos, max_size);
       return max_size;
     }

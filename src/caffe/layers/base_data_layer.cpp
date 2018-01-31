@@ -56,20 +56,21 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
 
   for(std::size_t i = 0; i < prefetch_count; ++i) {
     prefetch_.push_back(new Batch<Dtype>());
+    // prefetch_.push_back(boost::make_shared<Batch<Dtype> >());
   }
 
-  cache_size_ = param.data_param().cache_size();
-  LOG(INFO) << "Caches " << cache_size_;
+  this->cache_size_ = param.data_param().cache_size();
+  LOG(INFO) << "Caches " << this->cache_size_;
   DLOG(INFO) << "BPDL Initialization";
   prefetch= true;// false;
   // DLOG(INFO) << "CacheSize: " << cache_size_;
-  if(cache_size_)
+  if(this->cache_size_)
   {
     // Allocate No of Caches (Count = Num Level of Caches ? )
-    caches_ = new Cache<Dtype> * [cache_size_];
-    DLOG(INFO) << "Cache Created ,num: " << cache_size_;
+    caches_ = new Cache<Dtype> * [this->cache_size_];
+    DLOG(INFO) << "Cache Created ,num: " << this->cache_size_;
   }
-  for(int i = cache_size_, j=0; i > 0; i--, j++)
+  for(int i = this->cache_size_, j=0; i > 0; i--, j++)
   {
 
     bool thread_safe = param.data_param().cache(j).thread_safe();
@@ -85,6 +86,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       //Create a new cache, set size, a dirty structure
       caches_[i-1] = new MemoryCache<Dtype>();
       caches_[i-1]->size = param.data_param().cache(j).size();
+      caches_[i-1]->batch_size = param.data_param().batch_size();
       std::vector<shared_bptr_type> v_dirty(
                   caches_[i-1]->size.load(boost::memory_order_relaxed));
                   //, boost::make_shared<shared_bptr_type>(true));
@@ -107,11 +109,15 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
       DiskCacheType * diskcache;
       caches_[i-1] = new DiskCacheType();
       diskcache = dynamic_cast<DiskCacheType *>(caches_[i-1]);
+      diskcache->file_buffer_size_ = 0;
+      diskcache->image_count = 0;
       diskcache->size = param.data_param().cache(j).size();
       diskcache->disk_cache_min_size =
                          param.data_param().cache(j).cache_minsize();
       diskcache->disk_cache_max_size =
                          param.data_param().cache(j).cache_maxsize();
+      diskcache->batch_size =
+                         param.data_param().batch_size();
       std::vector<shared_bptr_type> v_dirty(
           diskcache->size.load(boost::memory_order_relaxed));
           // , boost::make_shared<bool>(true));
@@ -135,7 +141,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
     }
 
     //Setup cache to point one level above
-    if(i-1==cache_size_-1)
+    if((i-1) == (this->cache_size_-1))
       caches_[i-1]->next = NULL;
     else
       caches_[i-1]->next = caches_[i];
@@ -155,7 +161,7 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   }
 
   //Setup cache to point one level below
-  for(int j=0; j < cache_size_; j++)
+  for(int j=0; j < this->cache_size_; j++)
   {
     if(j==0)
       caches_[j]->prev = NULL;
@@ -168,11 +174,12 @@ BasePrefetchingDataLayer<Dtype>::BasePrefetchingDataLayer(
   typedef MemoryCache<Dtype> MemCacheType;
   MemCacheType * memcache;
 
-  if(cache_size_ && ((memcache = dynamic_cast<MemCacheType *>(caches_[0])))) {
+  if(this->cache_size_ && ((memcache = dynamic_cast<MemCacheType *>(caches_[0])))) {
     // only cache level 0 pushes data to prefetch_free queue
     // for (int i = 0; i < memcache->size ; ++i) {
     //   prefetch_free_.push(&memcache->cache[i]);
     // }
+    DLOG(INFO) << "CACHES ARE CREATED!!!!!!!!!!!!!!!!!!!";
   }
   else {
     for (int i = 0; i < prefetch_count; ++i) {
@@ -192,63 +199,82 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   // seems to cause failures if we do not so.
 #ifdef USE_DEEPMEM
   DLOG(INFO) << "BasePrefetchingData LayerSetup";
+  DLOG(INFO) << "CACHES Size: BPDL: " << this->cache_size_;
   randomGen.Init();
 #endif
   // for (int i = 0; i < PREFETCH_COUNT; ++i) {
-  for (int i = 0; i < this->prefetch_count; ++i) {
-    prefetch_[i]->data_.mutable_cpu_data();
-    if (this->output_labels_) {
-      prefetch_[i]->label_.mutable_cpu_data();
+  if(this->cache_size_ == 0) {
+    for (int i = 0; i < this->prefetch_count; ++i) {
+      prefetch_[i]->data_.mutable_cpu_data();
+      if (this->output_labels_) {
+        prefetch_[i]->label_.mutable_cpu_data();
+      }
     }
   }
 #ifdef USE_DEEPMEM
-  for (int i = 0; i < cache_size_; ++i) {
+  for (int i = 0; i < this->cache_size_; ++i) {
     this->caches_[i]->mutate_data(this->output_labels_, i);
   }
 #endif
+  if(this->cache_size_ == 0) {
 #ifndef CPU_ONLY
-  if (Caffe::mode() == Caffe::GPU) {
-    // for (int i = 0; i < PREFETCH_COUNT; ++i) {
-    for (int i = 0; i < this->prefetch_count; ++i) {
-      prefetch_[i]->data_.mutable_gpu_data();
-      if (this->output_labels_) {
-        prefetch_[i]->label_.mutable_gpu_data();
+    if (Caffe::mode() == Caffe::GPU) {
+      // for (int i = 0; i < PREFETCH_COUNT; ++i) {
+      for (int i = 0; i < this->prefetch_count; ++i) {
+        prefetch_[i]->data_.mutable_gpu_data();
+        if (this->output_labels_) {
+          prefetch_[i]->label_.mutable_gpu_data();
+        }
+        // CUDA_CHECK(cudaEventCreate(&prefetch_[i].copied_));
+        CUDA_CHECK(cudaEventCreate(&prefetch_[i]->copied_));
       }
-      // CUDA_CHECK(cudaEventCreate(&prefetch_[i].copied_));
-      CUDA_CHECK(cudaEventCreate(&prefetch_[i]->copied_));
     }
 #endif
-  // for (int i = 0; i < PREFETCH_COUNT; ++i) {
-  //for (int i = 0; i < this->prefetch_count; ++i) {
-  //  prefetch_[i]->count = this->reuse_count;
-  //}
-
-//#ifdef USE_DEEPMEM
-//  for (int i = 0; i < cache_size_; ++i) {
-    // output_labels and cache level (if level 0, malloc gpu)
-//    caches_[i]->mutate_data(this->output_labels_, i);
-//  }
-//#endif
   }
+
   DLOG(INFO) << "Initializing prefetch";
   this->data_transformer_->InitRand();
 
 #ifdef USE_DEEPMEM
-  for (int i = 0; i < cache_size_; ++i) {
+
+  for (int i = 0; i < this->cache_size_; ++i) {
     caches_[i]->fill(false);
+  }
+
+  // DLOG(INFO) << "Here---------------! " << this->cache_size_;
+  typedef DiskCache<Dtype> DiskCacheType;
+  typedef MemoryCache<Dtype> MemCacheType;
+  MemCacheType * memcache; DiskCacheType * diskcache;
+
+  if(this->cache_size_) {
+    diskcache = dynamic_cast<DiskCacheType *>(caches_[this->cache_size_ - 1]);
+    // DLOG(INFO) << "Here---------------!";
+    memcache = dynamic_cast<MemCacheType *>(caches_[0]);
+
+    if(diskcache && memcache)
+      diskcache->ref_data_shape_ = memcache->cache[0].data_.shape();
+      diskcache->ref_label_shape_ = memcache->cache[0].label_.shape();
   }
 
   DLOG(INFO) << "Initial Cache Fill ...." ;
 
-  typedef MemoryCache<Dtype> MemCacheType;
-  MemCacheType * memcache;
-
-  if(cache_size_ && ((memcache = dynamic_cast<MemCacheType *>(caches_[0])))) {
+  // if(cache_size_ && ((memcache = dynamic_cast<MemCacheType *>(caches_[0])))) {
+  // if(this->cache_size_ && memcache) {
+  if(memcache) {
     // only cache level 0 pushes data to prefetch_free queue
     for (int i = 0; i < memcache->size ; ++i) {
       PopBatch<Dtype> pbatch = memcache->pop();
+          if(pbatch.batch->data_.data()->head() == SyncedMemory::HEAD_AT_CPU)
+            DLOG(INFO) << "HEAD_AT_CPU -------" ;
+          else if(pbatch.batch->data_.data()->head() == SyncedMemory::HEAD_AT_GPU)
+            DLOG(INFO) << "HEAD_AT_GPU -------" ;
+          else if(pbatch.batch->data_.data()->head() == SyncedMemory::SYNCED)
+            DLOG(INFO) << "HEAD_SYNCED -------" ;
+          else
+            DLOG(INFO) << "HEAD_UNINITIALIZED ---------" ;
       // pop_prefetch_free_.push(&memcache->cache[i]);
-      pop_prefetch_free_.push(pbatch);
+      // pop_prefetch_free_.push(pbatch);
+      pop_prefetch_full_.push(pbatch);
     }
   }
 
@@ -263,7 +289,6 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   if (Caffe::mode() == Caffe::GPU) {
 #endif
 */
-
   StartInternalThread();
   DLOG(INFO) << "Prefetch initialized.";
 }
@@ -278,23 +303,27 @@ DLOG(INFO) << "InternalThrdEnt";
 #ifdef USE_DEEPMEM
   // Fill the caches in the prefetcher thread
   try {
-    for (int i = 0; i < cache_size_; ++i) {
+    for (int i = 0; i < this->cache_size_; ++i) {
       // fill labels as well
       caches_[i]->fill(false);
     }
+      Batch<Dtype> * batch;
     while (!must_stop()) {
-      if(cache_size_)
+      if(this->cache_size_)
       {
-        for(int i=cache_size_-1; i>= 0; i--)
+        // LOG(INFO) << "InternalThreadEntry LOG!";
+        DLOG(INFO) << "PopPrefetchFree queue size: ------------> "<<
+            pop_prefetch_free_.size();
+        PopBatch<Dtype> pbatch = pop_prefetch_free_.pop(
+                    "DEEPMEMCACHE DataLayer(Pop CH) Free Queue Empty");
+        for(int i=this->cache_size_-1; i>= 0; i--)
         {
           //If we handle the refilling apply the member pointer to the current Cache class
           if(caches_[i]->prefetch)
             (caches_[i]->*(caches_[i]->refill_policy))(1);
         }
-        // LOG(INFO) << "InternalThreadEntry LOG!";
-        PopBatch<Dtype> pbatch = pop_prefetch_free_.pop(
-                    "DEEPMEMCACHE DataLayer(Pop CH) Free Queue Empty");
-        Batch<Dtype>* batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
+        // Batch<Dtype>* batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
+        batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
         /*if(batch->data_.data()->head() != SyncedMemory::HEAD_AT_CPU) {
           batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
           if(this->output_labels_) {
@@ -306,36 +335,50 @@ DLOG(INFO) << "InternalThrdEnt";
         // PopBatch<Dtype> pbatch_copy; //  = new PopBatch<Dtype>();
         if(disk_cache_) { // && (disk_copy_.size() < 10)) {
           typedef DiskCache<Dtype> DiskCacheType;
-          DiskCacheType * diskcache = dynamic_cast<DiskCacheType *>(caches_[cache_size_ - 1]);
+          DiskCacheType * diskcache = dynamic_cast<DiskCacheType *>(caches_[this->cache_size_ - 1]);
           if(disk_copy_.size() < 2 * diskcache->disk_cache_min_size) {
-            Batch<Dtype> *batch_copy = new Batch<Dtype>();
-            batch_copy->data_.Reshape(batch->data_.shape());
-            batch_copy->data_.mutable_cpu_data();
-            if(this->output_labels_) {
-              batch_copy->label_.Reshape(batch->label_.shape());
-              batch_copy->label_.mutable_cpu_data();
-            }
 
-            DLOG(INFO) << "Batch Copy initialized... " ;
+            shared_ptr<Batch<Dtype> > batch_copy = boost::make_shared<Batch<Dtype> >();
+            // shared_ptr<Batch<Dtype> > batch_copy(new Batch<Dtype>());
+            // batch_copy->data_.mutable_cpu_data();
+            // batch_copy->data_.Reshape(batch->data_.shape());
+            // if(this->output_labels_) {
+            //   batch_copy->label_.mutable_cpu_data();
+              // batch_copy->label_.Reshape(batch->label_.shape());
+            // }
 
-            batch_copy->data_.CopyFrom(batch->data_);
-            batch_copy->label_.CopyFrom(batch->label_);
+            // DLOG(INFO) << "Batch Copy initialized... " ;
+
+            batch_copy->data_.CopyFrom(batch->data_, false, true);
+            batch_copy->label_.CopyFrom(batch->label_, false, true);
 
           // caches_[cache_size_ - 1]->fill
 
             disk_copy_.push(batch_copy);
-            if(disk_copy_.size() >= diskcache->disk_cache_min_size) {
+            if(disk_copy_.size() >= 5) { // diskcache->disk_cache_min_size) {
               diskcache->fill(true);
             }
-            DLOG(INFO) << "Disk Copy Queue Size: " << disk_copy_.size();
+            // DLOG(INFO) << "Disk Copy Queue Size: __________" << disk_copy_.size();
           }
         }
 
 #ifndef CPU_ONLY
         if (Caffe::mode() == Caffe::GPU) {
-          batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
-          if(this->output_labels_)
-            batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+          if(batch->data_.data()->head() == SyncedMemory::HEAD_AT_CPU)
+            DLOG(INFO) << "HEAD_AT_CPU -------" ;
+          else if(batch->data_.data()->head() == SyncedMemory::HEAD_AT_GPU)
+            DLOG(INFO) << "HEAD_AT_GPU -------" ;
+          else if(batch->data_.data()->head() == SyncedMemory::SYNCED)
+            DLOG(INFO) << "HEAD_SYNCED -------" ;
+          else
+            DLOG(INFO) << "HEAD_UNINITIALIZED ---------" ;
+
+          if((batch->data_.data()->head() == SyncedMemory::HEAD_AT_GPU) ||
+            (batch->data_.data()->head() == SyncedMemory::SYNCED)) {
+            batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+            if(this->output_labels_)
+              batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+          }
 
           batch->data_.data()->async_gpu_push();
           if (this->output_labels_) {
@@ -348,10 +391,10 @@ DLOG(INFO) << "InternalThrdEnt";
         }
 #endif
         pop_prefetch_full_.push(pbatch);
-        LOG(INFO) << "Pop Prefetch Full size: " << pop_prefetch_full_.size();
+        // DLOG(INFO) << "Pop Prefetch Full size:++++++++++ " << pop_prefetch_full_.size();
       } else {
         // Use Default approach:
-        Batch<Dtype>* batch; // std::size_t reuse_count; bool f_reuse;
+        // shared_ptr<Batch<Dtype> > batch; // std::size_t reuse_count; bool f_reuse;
         LOG_EVERY_N(INFO, 1000) << "Default InternalThreadEntry LOG! Print every 1000 call";
         batch = prefetch_free_.pop("DEEPMEMCACHE DataLayer Free Queue Empty");
         load_batch(batch);
@@ -400,14 +443,15 @@ DLOG(INFO) << "InternalThrdEnt";
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
-  DLOG(INFO) << "FCPU Call";
+  // DLOG(INFO) << "FCPU Call";
 #ifdef USE_DEEPMEM
-  Batch<Dtype> * batch;
   // PopBatch<Dtype>* pbatch;
+  //shared_ptr<Batch<Dtype> > batch;
+  Batch<Dtype>* batch;
   PopBatch<Dtype> pbatch;
   //If there are any caches
-  DLOG(INFO) << "FCPU Call DEEPMEM";
-  if(cache_size_)
+  // DLOG(INFO) << "FCPU Call DEEPMEM";
+  if(this->cache_size_)
   {
     //Do we handle the refill on l1 cache?
     // if(!caches_[0]->prefetch && caches_[0]->empty()) //empty cache
@@ -433,7 +477,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
   // Copy the data
   caffe_copy(batch->data_.count(), batch->data_.cpu_data(),
              top[0]->mutable_cpu_data());
-  DLOG(INFO) << "Prefetch copied";
+  // DLOG(INFO) << "Prefetch copied";
   if (this->output_labels_) {
     // Reshape to loaded labels.
     top[1]->ReshapeLike(batch->label_);
@@ -450,7 +494,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     if(batch->count > 0) {
       DLOG(INFO) << "Batch Reuse Count: " << batch->count;
       batch->dirty = false;
-      if(cache_size_ == 0 || caches_[0]->size == 0) {
+      if(this->cache_size_ == 0 || caches_[0]->size == 0) {
         prefetch_full_.push(batch);
       }
       else {
@@ -460,7 +504,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_cpu(
     }
     else {
       batch->dirty = true;
-      if(cache_size_ == 0 || caches_[0]->size == 0) {
+      if(this->cache_size_ == 0 || caches_[0]->size == 0) {
         prefetch_free_.push(batch);
       }
       else {

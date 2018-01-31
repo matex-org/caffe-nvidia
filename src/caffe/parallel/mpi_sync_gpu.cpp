@@ -88,7 +88,7 @@ MPISyncGPU<Dtype>::~MPISyncGPU() {
 
 template<typename Dtype>
 void MPISyncGPU<Dtype>::allreduce() {
-  DLOG(INFO) << "allreduce()";
+  // DLOG(INFO) << "allreduce()";
 #ifndef CPU_ONLY
   // Copy from GPU device to CPU host
   CUDA_CHECK(cudaMemcpy(cpu_ptr_, diff_, size_ * sizeof(Dtype), cudaMemcpyDeviceToHost));
@@ -122,4 +122,3 @@ void MPISyncGPU<Dtype>::Step(int iters) {
 INSTANTIATE_CLASS(MPISyncGPU);
 
 }  // namespace caffe
-

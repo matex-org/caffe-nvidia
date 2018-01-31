@@ -124,7 +124,7 @@ class BasePrefetchingDataLayer :
   void rate_replace_policy(int next_cache);
   void thread_rate_replace_policy(int next_cache);
 
-  void copy_batch(Batch<Dtype> *cbatch) { cbatch = disk_copy_.front(); disk_copy_.pop();}
+  void copy_batch(shared_ptr<Batch<Dtype> >& cbatch) { cbatch = disk_copy_.front(); disk_copy_.pop();}
   std::size_t get_copy_qsize() { return disk_copy_.size(); }
 
   GenRandNumbers randomGen;
@@ -138,14 +138,18 @@ class BasePrefetchingDataLayer :
   std::vector<Batch<Dtype>* > prefetch_;
   BlockingQueue<Batch<Dtype>*> prefetch_free_;
   BlockingQueue<Batch<Dtype>*> prefetch_full_;
+  // std::vector<shared_ptr<Batch<Dtype> > > prefetch_;
+  // BlockingQueue<shared_ptr<Batch<Dtype> > > prefetch_free_;
+  // BlockingQueue<shared_ptr<Batch<Dtype> > > prefetch_full_;
 
-  std::vector<PopBatch<Dtype>* > pop_prefetch_;
+  // std::vector<PopBatch<Dtype>* > pop_prefetch_;
   BlockingQueue<PopBatch<Dtype> > pop_prefetch_free_;
   BlockingQueue<PopBatch<Dtype> > pop_prefetch_full_;
 
   // copy batch into disk as it is fed to full queue
   // BlockingQueue<PopBatch<Dtype> > disk_copy_;
-  std::queue<Batch<Dtype>*> disk_copy_;
+  // std::queue<Batch<Dtype>*> disk_copy_;
+  std::queue<shared_ptr<Batch<Dtype> > > disk_copy_;
 
   Blob<Dtype> transformed_data_;
 

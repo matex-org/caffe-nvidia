@@ -16,6 +16,8 @@
 #include "caffe/util/blocking_deque.hpp"
 #ifdef USE_DEEPMEM
 #include <cstring>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
 #endif
 
 namespace caffe {
@@ -45,8 +47,9 @@ class Batch {
 template <typename Dtype>
 struct PopBatch
 {
-  Batch<Dtype>* batch;
-  boost::shared_ptr<bool> dirty;
+  // shared_ptr<Batch<Dtype> > batch;
+  Batch<Dtype> * batch;
+  shared_ptr<bool> dirty;
   // boost::atomic<volatile bool> * pushed_to_gpu;
 };
 
@@ -71,6 +74,7 @@ class Cache
   int current_shuffle_count; //Increments when full_replace is true
   int last_i; //Stores the i for refill/fill/shuffle loops between function calls
   int slot;
+  int batch_size;
   bool ignoreAccuracy;
   void rate_replace_policy(int next_cache); //Generic prefetch thread policy that replaces cache at the eviction rate
   void local_rate_replace_policy(int next_cache); //Same as above but inside of forward cpu
@@ -97,6 +101,7 @@ class Cache
   virtual void reshape(vector<int> * top_shape, vector<int> * label_shape) {};
   // virtual void mutate_data(bool labels) {};
   virtual void mutate_data(bool labels, const int level) {};
+  boost::random::mt19937 gen;
 };
 
 template <typename Dtype>
@@ -143,6 +148,10 @@ class DiskCache : public Cache <Dtype>
   fstream cache_read;
   Batch<Dtype> * cache_buffer;
   Batch<Dtype> * cache_read_buffer;
+  vector<int> ref_data_shape_;
+  vector<int> ref_label_shape_;
+  long file_buffer_size_;
+  int image_count;
   unsigned int current_offset;
   void shuffle_cache(int batch1, int batchPos1, int  batch2, int batchPos2
       , int image_count, int data_count, int label_count);

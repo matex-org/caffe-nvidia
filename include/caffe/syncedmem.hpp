@@ -78,6 +78,7 @@ class SyncedMemory {
   int gpu_device() const {
     return gpu_device_;
   }
+  void* get_gpu_ptr() { return gpu_ptr_; }
   void async_gpu_push();
   void async_gpu_recopy();
 #endif

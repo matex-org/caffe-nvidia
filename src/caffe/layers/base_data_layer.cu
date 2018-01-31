@@ -10,7 +10,7 @@ extern int get_num_caches();
 template <typename Dtype>
 void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
-  DLOG(INFO) << "FGPU Call";
+  // DLOG(INFO) << "FGPU Call";
 #ifdef USE_DEEPMEM
   typedef MemoryCache<Dtype> MemCacheType;
   Batch<Dtype> * batch;
@@ -25,7 +25,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
       //Refill before poping using the policy we have
       (caches_[0]->*(caches_[0]->local_refill_policy))(1);
     }
-    DLOG(INFO) << "PREFETCH_FULL_SIZE(beforepop_cu):" << prefetch_full_.size();
+    DLOG(INFO) << "PREFETCH_FULL_SIZE(beforepop_cu):________" << prefetch_full_.size();
     pbatch = pop_prefetch_full_.pop("DEEPMEMCACHE DataLayer Full Queue Empty(gpu-cache)");
     batch = pbatch.batch;
   }
@@ -74,7 +74,7 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   if(batch->count > 0) {
       DLOG(INFO) << "Batch Reuse Count: " << batch->count;
       batch->dirty = false;
-      if(cache_size_ == 0 || caches_[0]->size == 0) {
+      if(this->cache_size_ == 0 || caches_[0]->size == 0) {
         prefetch_full_.push(batch);
       }
       else {
@@ -84,14 +84,19 @@ void BasePrefetchingDataLayer<Dtype>::Forward_gpu(
   }
   else {
       batch->dirty = true;
-      // batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
-      // if(this->output_labels_)
-      //  batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
       // DLOG(INFO) << "Used Batch Head Reset At CPU.... " ;
-      if(cache_size_ == 0 || caches_[0]->size == 0) {
+
+      // if(cache_size_ == 0 || caches_[0]->size == 0) {
+      if(this->cache_size_ == 0) {
         prefetch_free_.push(batch);
       }
       else {
+        // batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+        // caffe::CaffeFreeHost(batch->data_.data()->get_gpu_ptr(), true);
+        // if(this->output_labels_) {
+          // batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
+          // caffe::CaffeFreeHost(batch->label_.data()->get_gpu_ptr(), true);
+        // }
         *pbatch.dirty = true;
         pop_prefetch_free_.push(pbatch);
       }
