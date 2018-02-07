@@ -198,8 +198,8 @@ void BasePrefetchingDataLayer<Dtype>::LayerSetUp(
   // cudaMalloc calls when the main thread is running. In some GPUs this
   // seems to cause failures if we do not so.
 #ifdef USE_DEEPMEM
-  DLOG(INFO) << "BasePrefetchingData LayerSetup";
-  DLOG(INFO) << "CACHES Size: BPDL: " << this->cache_size_;
+  LOG(INFO) << "BasePrefetchingData LayerSetup";
+  LOG(INFO) << "CACHES Size: BPDL: " << this->cache_size_;
   randomGen.Init();
 #endif
   // for (int i = 0; i < PREFETCH_COUNT; ++i) {
@@ -336,7 +336,7 @@ DLOG(INFO) << "InternalThrdEnt";
         if(disk_cache_) { // && (disk_copy_.size() < 10)) {
           typedef DiskCache<Dtype> DiskCacheType;
           DiskCacheType * diskcache = dynamic_cast<DiskCacheType *>(caches_[this->cache_size_ - 1]);
-          if(disk_copy_.size() < 2 * diskcache->disk_cache_min_size) {
+          if(disk_copy_.size() < 1000) {//2 * diskcache->disk_cache_min_size) {
 
             shared_ptr<Batch<Dtype> > batch_copy = boost::make_shared<Batch<Dtype> >();
             // shared_ptr<Batch<Dtype> > batch_copy(new Batch<Dtype>());
@@ -349,21 +349,22 @@ DLOG(INFO) << "InternalThrdEnt";
 
             // DLOG(INFO) << "Batch Copy initialized... " ;
 
-            batch_copy->data_.CopyFrom(batch->data_, false, true);
-            batch_copy->label_.CopyFrom(batch->label_, false, true);
+            batch_copy->data_.CopyFromCPU(batch->data_, false, true);
+            batch_copy->label_.CopyFromCPU(batch->label_, false, true);
 
           // caches_[cache_size_ - 1]->fill
-
             disk_copy_.push(batch_copy);
-            if(disk_copy_.size() >= 5) { // diskcache->disk_cache_min_size) {
-              diskcache->fill(true);
-            }
-            // DLOG(INFO) << "Disk Copy Queue Size: __________" << disk_copy_.size();
           }
+
+          if(disk_copy_.size() >= 10) { // diskcache->disk_cache_min_size) {
+            diskcache->fill(true);
+          }
+          // LOG(INFO) << "Disk Copy Queue Size: _______ " << disk_copy_.size();
         }
 
 #ifndef CPU_ONLY
         if (Caffe::mode() == Caffe::GPU) {
+          /*
           if(batch->data_.data()->head() == SyncedMemory::HEAD_AT_CPU)
             DLOG(INFO) << "HEAD_AT_CPU -------" ;
           else if(batch->data_.data()->head() == SyncedMemory::HEAD_AT_GPU)
@@ -372,6 +373,7 @@ DLOG(INFO) << "InternalThrdEnt";
             DLOG(INFO) << "HEAD_SYNCED -------" ;
           else
             DLOG(INFO) << "HEAD_UNINITIALIZED ---------" ;
+          */
 
           if((batch->data_.data()->head() == SyncedMemory::HEAD_AT_GPU) ||
             (batch->data_.data()->head() == SyncedMemory::SYNCED)) {

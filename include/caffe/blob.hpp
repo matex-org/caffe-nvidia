@@ -188,6 +188,9 @@ class Blob {
   void CopyFrom(const Blob<Dtype>& source, bool copy_diff = false,
       bool reshape = false);
 
+  void CopyFromCPU(const Blob<Dtype>& source, bool copy_diff = false,
+      bool reshape = false);
+
   inline Dtype data_at(const int n, const int c, const int h,
       const int w) const {
     return cpu_data()[offset(n, c, h, w)];

@@ -300,8 +300,10 @@ void MemoryCache<Dtype>::refill(Cache<Dtype> * next_cache)
         pbatch = next_cache->pop();
         DLOG(INFO) << "MemCACHE DATA SIZE: " << cache[j].data_.data()->size();
         DLOG(INFO) << "PBATCH DATA SIZE: " << pbatch.batch->data_.data()->size();
-        cache[j].data_.CopyFrom( pbatch.batch->data_ , false, true);
-        cache[j].label_.CopyFrom( pbatch.batch->label_, false, true );
+        // cache[j].data_.CopyFrom( pbatch.batch->data_ , false, true);
+        // cache[j].label_.CopyFrom( pbatch.batch->label_, false, true );
+        cache[j].data_.CopyFromCPU( pbatch.batch->data_ , false, true);
+        cache[j].label_.CopyFromCPU( pbatch.batch->label_, false, true );
         *pbatch.dirty = true;
         pbatch.batch->dirty = true;
         // delete pbatch.batch;
@@ -569,20 +571,32 @@ void DiskCache<Dtype>::fill(bool in_thread)
       }
     }
 
-    for(int qcount = 0; qcount < Cache<Dtype>::data_layer->get_copy_qsize(); ++qcount ) {
+    int copy_qsize = Cache<Dtype>::data_layer->get_copy_qsize();
+    int size_tocopy = 0;
+
+    // if(copy_qsize > this->disk_cache_min_size) {
+    if(copy_qsize > 50 || copy_qsize < 20) {
+      size_tocopy = copy_qsize;// 2 * this->disk_cache_min_size;
+    }
+    else // if(copy_qsize > 20)
+      size_tocopy = 20;
+
+    // LOG(INFO) << "Size to Copy: +++++++++ " << size_tocopy;
+    // else
+    //   size_tocopy = copy_qsize;
+
+    // for(int qcount = 0; (qcount < 20) && (qcount < copy_qsize); ++qcount ) {
+    for(int qcount = 0; qcount < size_tocopy; ++qcount ) {
 
       if (Cache<Dtype>::size < this->disk_cache_max_size) {
-        // boost::lock_guard<boost::mutex> lck(this->mtx_);
         fill_pos(Cache<Dtype>::size);
 
-        // Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
         (*Cache<Dtype>::dirty).push_back(boost::make_shared<bool>(false));
         Cache<Dtype>::size.fetch_add(1, boost::memory_order_release);
       }
       else {
         // for (int j = Cache<Dtype>::last_i; j < Cache<Dtype>::size; ++j) {
         for (int j = Cache<Dtype>::slot; j < Cache<Dtype>::size; ++j) {
-        // Cache<Dtype>::last_i = j;
 
           if(*(*Cache<Dtype>::dirty)[j] == true)
           {
@@ -590,11 +604,18 @@ void DiskCache<Dtype>::fill(bool in_thread)
             fill_pos(j);
             // Cache<Dtype>::used.fetch_sub(1, boost::memory_order_relaxed);
             *(*Cache<Dtype>::dirty)[j] = false;
-            // Cache<Dtype>::last_i++;
-            // Cache<Dtype>::last_i++;
           }
           else
             break;
+        }
+
+        for (int j = 0; j < Cache<Dtype>::size; ++j) {
+          if(*(*Cache<Dtype>::dirty)[j] == true)
+          {
+            fill_pos(j);
+            *(*Cache<Dtype>::dirty)[j] = false;
+            break;
+          }
         }
     }
     //delete cache_buffer; // free the copied memory;

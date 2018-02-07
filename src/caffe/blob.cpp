@@ -410,6 +410,25 @@ bool Blob<Dtype>::ShapeEquals(const BlobProto& other) {
 }
 
 template <typename Dtype>
+void Blob<Dtype>::CopyFromCPU(const Blob& source, bool copy_diff, bool reshape) {
+  if (source.count() != count_ || source.shape() != shape_) {
+    if (reshape) {
+      ReshapeLike(source);
+    } else {
+      LOG(FATAL) << "Trying to copy blobs of different sizes.";
+    }
+  }
+
+  if (copy_diff) {
+    caffe_copy(count_, source.cpu_diff(),
+        static_cast<Dtype*>(diff_->mutable_cpu_data()));
+  } else {
+    caffe_copy(count_, source.cpu_data(),
+        static_cast<Dtype*>(data_->mutable_cpu_data()));
+  }
+}
+
+template <typename Dtype>
 void Blob<Dtype>::CopyFrom(const Blob& source, bool copy_diff, bool reshape) {
   if (source.count() != count_ || source.shape() != shape_) {
     if (reshape) {
@@ -538,4 +557,3 @@ template class Blob<int>;
 template class Blob<unsigned int>;
 
 }  // namespace caffe
-
