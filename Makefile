@@ -218,6 +218,13 @@ ifeq ($(USE_MPI), 1)
  #endif
 endif
 
+ifeq ($(USE_GA), 1)
+    COMMON_FLAGS += -DUSE_GA=1
+endif
+ifeq ($(USE_GA), 1)
+    LIBRARIES += ga armci
+endif
+
 ##############################
 # Set build directories
 ##############################

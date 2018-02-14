@@ -14,6 +14,7 @@ namespace bp = boost::python;
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
 #include "caffe/mpi.hpp"
+#include "caffe/parallel/ga_sync_gpu.hpp"
 #include "caffe/parallel/mpi_async_params_gpu.hpp"
 #include "caffe/parallel/mpi_gossip_params_gpu.hpp"
 #include "caffe/parallel/mpi_gossip_params_gpu2.hpp"
@@ -32,6 +33,8 @@ namespace bp = boost::python;
 #include "caffe/util/gpu_memory.hpp"
 #include "caffe/util/signal_handler.h"
 
+#include "ga.h"
+#include "ga-mpi.h"
 
 using caffe::Blob;
 using caffe::Caffe;
@@ -208,6 +211,15 @@ int train() {
       }
   }
 
+  if (FLAGS_par == "GASyncGPU"
+          || FLAGS_par == "GASyncGPU2"
+          || FLAGS_par == "GASyncGPU3"
+          || FLAGS_par == "GASyncGPU4"
+  ) {
+    GA_Initialize();
+    caffe::mpi::set_comm_default(GA_MPI_Comm());
+  }
+
   // Read flags for list of GPUs
   vector<int> gpus;
   get_gpus(&gpus);
@@ -327,7 +339,11 @@ int train() {
     }
   }
   else {
-    if (FLAGS_par == "MPISyncGPU") {
+    if (FLAGS_par == "GASyncGPU") {
+      caffe::GASyncGPU<float> sync(solver);
+      sync.Run();
+    }
+    else if (FLAGS_par == "MPISyncGPU") {
       caffe::MPISyncGPU<float> sync(solver, solver->param());
       sync.Run();
     }
@@ -415,6 +431,13 @@ int train() {
     else {
       LOG(ERROR) << "unrecognized FLAGS_par";
     }
+  }
+  if (FLAGS_par == "GASyncGPU"
+          || FLAGS_par == "GASyncGPU2"
+          || FLAGS_par == "GASyncGPU3"
+          || FLAGS_par == "GASyncGPU4"
+  ) {
+    GA_Terminate();
   }
   LOG(INFO) << "Optimization Done.";
 
