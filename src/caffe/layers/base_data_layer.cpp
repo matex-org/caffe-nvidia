@@ -303,11 +303,11 @@ DLOG(INFO) << "InternalThrdEnt";
 #ifdef USE_DEEPMEM
   // Fill the caches in the prefetcher thread
   try {
-    for (int i = 0; i < this->cache_size_; ++i) {
+    /*for (int i = 0; i < this->cache_size_; ++i) {
       // fill labels as well
       caches_[i]->fill(false);
-    }
-      Batch<Dtype> * batch;
+    }*/
+    Batch<Dtype> * batch;
     while (!must_stop()) {
       if(this->cache_size_)
       {
@@ -321,42 +321,24 @@ DLOG(INFO) << "InternalThrdEnt";
           //If we handle the refilling apply the member pointer to the current Cache class
           if(caches_[i]->prefetch)
             (caches_[i]->*(caches_[i]->refill_policy))(1);
+          // else
+            // (caches_[i]->*(caches_[i]->local_refill_policy))(1);
         }
-        // Batch<Dtype>* batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
-        batch = pbatch.batch; //prefetch_free_.pop("DEEPMEMCACHE DataLayer(CH) Free Queue Empty");
-        /*if(batch->data_.data()->head() != SyncedMemory::HEAD_AT_CPU) {
-          batch->data_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
-          if(this->output_labels_) {
-            batch->label_.data()->set_head(SyncedMemory::HEAD_AT_CPU);
-          }
-        }*/
-
-        // copy PopBatch to disk_prefetch_copy_ be copied to the disk cache
-        // PopBatch<Dtype> pbatch_copy; //  = new PopBatch<Dtype>();
-        if(disk_cache_) { // && (disk_copy_.size() < 10)) {
+        batch = pbatch.batch;
+        if(disk_cache_) {
           typedef DiskCache<Dtype> DiskCacheType;
           DiskCacheType * diskcache = dynamic_cast<DiskCacheType *>(caches_[this->cache_size_ - 1]);
-          if(disk_copy_.size() < 1000) {//2 * diskcache->disk_cache_min_size) {
+          if(disk_copy_.size() < 1500) {
 
             shared_ptr<Batch<Dtype> > batch_copy = boost::make_shared<Batch<Dtype> >();
-            // shared_ptr<Batch<Dtype> > batch_copy(new Batch<Dtype>());
-            // batch_copy->data_.mutable_cpu_data();
-            // batch_copy->data_.Reshape(batch->data_.shape());
-            // if(this->output_labels_) {
-            //   batch_copy->label_.mutable_cpu_data();
-              // batch_copy->label_.Reshape(batch->label_.shape());
-            // }
-
             // DLOG(INFO) << "Batch Copy initialized... " ;
-
             batch_copy->data_.CopyFromCPU(batch->data_, false, true);
             batch_copy->label_.CopyFromCPU(batch->label_, false, true);
 
-          // caches_[cache_size_ - 1]->fill
             disk_copy_.push(batch_copy);
           }
 
-          if(disk_copy_.size() >= 10) { // diskcache->disk_cache_min_size) {
+          if(disk_copy_.size() >= 10) {
             diskcache->fill(true);
           }
           // LOG(INFO) << "Disk Copy Queue Size: _______ " << disk_copy_.size();

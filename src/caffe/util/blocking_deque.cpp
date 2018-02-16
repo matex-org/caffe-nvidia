@@ -119,6 +119,8 @@ template class BlockingDeque<Batch<float>*>;
 template class BlockingDeque<Batch<double>*>;
 template class BlockingDeque<PopBatch<float>*>;
 template class BlockingDeque<PopBatch<double>*>;
+template class BlockingDeque<shared_ptr<Batch<float> > >;
+template class BlockingDeque<shared_ptr<Batch<double> > >;
 // template class BlockingQueue<Datum*>;
 template class BlockingDeque<string*>;
 template class BlockingDeque<shared_ptr<DataReader::QueuePair> >;

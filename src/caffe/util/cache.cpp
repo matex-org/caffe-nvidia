@@ -473,7 +473,7 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {  //Cache<Dtype>::lock();
   }
   while(*(*Cache<Dtype>::dirty)[my_slot])
   {
-    if(Cache<Dtype>::prev && this->prev->prefetch == Cache<Dtype>::prefetch)
+    /*if(Cache<Dtype>::prev && this->prev->prefetch == Cache<Dtype>::prefetch)
     {
       if(Cache<Dtype>::prefetch)
       {
@@ -485,7 +485,9 @@ PopBatch<Dtype> DiskCache<Dtype>::pop() {  //Cache<Dtype>::lock();
         (this->prev->*(this->prev->local_refill_policy))(1);
         (this->*(Cache<Dtype>::refill_policy))(1);
       }
-    }
+    }*/
+    fill_pos(my_slot);
+
   }
   int image_count;
   long datum_size;
@@ -582,8 +584,6 @@ void DiskCache<Dtype>::fill(bool in_thread)
       size_tocopy = 20;
 
     // LOG(INFO) << "Size to Copy: +++++++++ " << size_tocopy;
-    // else
-    //   size_tocopy = copy_qsize;
 
     // for(int qcount = 0; (qcount < 20) && (qcount < copy_qsize); ++qcount ) {
     for(int qcount = 0; qcount < size_tocopy; ++qcount ) {
